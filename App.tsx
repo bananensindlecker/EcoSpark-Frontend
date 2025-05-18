@@ -20,7 +20,7 @@ export default function App() {
       </Text>
       <Text style={styles.message}>{message}</Text>
       <Button title="Test" onPress={() => sendMessage(connectedDevice,'Test')} />
-      <Text style={styles.message}>{...messages}</Text>
+      <Text style={styles.message}>{messages}</Text>
       <Text style={styles.message}>{connected}</Text>
       <Text style={styles.message}>{error}</Text>
 
