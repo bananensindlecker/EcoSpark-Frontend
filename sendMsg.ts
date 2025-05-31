@@ -4,6 +4,9 @@ export async function sendMessage(device: BluetoothDevice, message: string): Pro
     if (!device?.isConnected) {
       throw new Error('Device not connected');
     }
+    if (!message) {
+      throw new Error('Message is required');
+    }
 
     try {
       await device.write(message + '\n');
@@ -11,4 +14,3 @@ export async function sendMessage(device: BluetoothDevice, message: string): Pro
       throw new Error('Send failed: ' + (err as Error).message);
     }
 }
-

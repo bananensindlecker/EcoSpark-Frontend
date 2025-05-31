@@ -12,6 +12,7 @@ export async function connectToPi(
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
       ]);
     }
 
@@ -29,7 +30,7 @@ export async function connectToPi(
     if (connected) {
       setConnectedDevice(pi);
 
-      await sendMessage(pi, 'Hello from RN app');
+      await sendMessage(pi, '0');
     } else {
       setMessage('Failed to connect.');
     }

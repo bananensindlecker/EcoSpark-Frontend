@@ -7,7 +7,10 @@ export function useBluetoothMessages(device: BluetoothDevice | null) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!device) {return;}
+    if (!device) {
+      console.log('No device provided');
+      return;
+    }
 
     let subscription: BluetoothEventSubscription;
 
@@ -23,9 +26,10 @@ export function useBluetoothMessages(device: BluetoothDevice | null) {
 
         // Subscribe to incoming Bluetooth data
         subscription = device.onDataReceived((event) => {
+          console.log('Received data:', event.data);
           const incoming = event.data?.trim();
           if (incoming) {
-            setMessages((prev) => [...prev, incoming]);
+            setMessages((prev) => [...prev, '; ' + incoming]);
           }
         });
       } catch (err) {
