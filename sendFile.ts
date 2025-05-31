@@ -7,7 +7,7 @@ export async function sendFile(
 ): Promise<void> {
   console.log('Starting file transfer...');
   if (!device?.isConnected) {
-  console.log('No divice connected');
+  console.log('No device connected');
     throw new Error('Device not connected');
   }
   if (!filePath) {
@@ -35,10 +35,13 @@ export async function sendFile(
       throw err;
     }
 
-    let newFileName:string = filePath.split('/').at(-1) as string;
+    const newFileName = filePath.split(/[/\\]/).pop();
+    if (!newFileName) {
+      throw new Error('Invalid file path: cannot extract filename');
+    }
     console.log('filename is: ' + newFileName);
 
-    const chunkSize = 4096;
+    const chunkSize = 32768;
     console.log('Writing START command');
     await device.write(`3:${newFileName}:START\n`);
     console.log('START command sent');
@@ -52,6 +55,7 @@ export async function sendFile(
     console.log('Writing END command');
     await device.write('\nEND\n');
     console.log('File sent successfully');
+    return;
   } catch (err) {
     throw new Error('Send failed: ' + (err as Error).message);
   }

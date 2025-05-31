@@ -352,8 +352,8 @@ export function createStyles(width: number, height: number) {
     borderRadius: 8 * scale,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft:2,
-    marginRight:2,
+    marginLeft: 2 * scale,
+    marginRight: 2 * scale,
   },
    connectUiModal: {
       position: 'absolute',
