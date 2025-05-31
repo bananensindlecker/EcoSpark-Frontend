@@ -39,7 +39,15 @@ export default function App() {
       {/*Button zum Senden einer sequenz*/}
       <Button title="Abfolge 6 wählen" onPress={() => sendMessage(connectedDevice,'2light,20,0000,5000,20')} />
 
-      <Button title="Abfolge 7 (mit sound) wählen" onPress={() =>{sendFile(connectedDevice,filePath1); sendMessage(connectedDevice,'2light,20,11760,11900?sound,test.wav,10000,100');} } />
+      <Button title="Abfolge 7 (mit sound) wählen" onPress={async () => {
+        try {
+          await sendFile(connectedDevice, filePath1);
+          await sendMessage(connectedDevice, '2light,20,11760,11900?sound,test.wav,10000,100');
+        } catch (error) {
+          console.error('Failed to send combined command:', error);
+          // Handle error appropriately
+        }
+      }} />
 
       {/*Button zum Starten der Abfolge*/}
       <Button title="Abfolge starten" onPress={() => sendMessage(connectedDevice,'4')} />
