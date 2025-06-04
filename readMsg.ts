@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import {BluetoothDevice, BluetoothEventSubscription} from 'react-native-bluetooth-classic';
+import { BluetoothDevice, BluetoothEventSubscription } from 'react-native-bluetooth-classic';
 
 export function useBluetoothMessages(device: BluetoothDevice | null) {
   const [messages, setMessages] = useState<string[]>([]);
@@ -8,15 +8,16 @@ export function useBluetoothMessages(device: BluetoothDevice | null) {
 
   useEffect(() => {
     if (!device) {
-      console.log('No device provided');
+      setConnected(false);
       return;
     }
 
     let subscription: BluetoothEventSubscription;
+    let interval: NodeJS.Timeout;
 
     const connectAndListen = async () => {
       try {
-        const isConnected = await device.connect();
+        const isConnected = await device.isConnected();
         setConnected(isConnected);
 
         if (!isConnected) {
@@ -26,12 +27,17 @@ export function useBluetoothMessages(device: BluetoothDevice | null) {
 
         // Subscribe to incoming Bluetooth data
         subscription = device.onDataReceived((event) => {
-          console.log('Received data:', event.data);
           const incoming = event.data?.trim();
           if (incoming) {
-            setMessages((prev) => [...prev, '; ' + incoming]);
+            setMessages((prev) => [...prev, incoming]);
           }
         });
+
+        // Poll connection status every 5 seconds
+        interval = setInterval(async () => {
+          const stillConnected = await device.isConnected();
+          setConnected(stillConnected);
+        }, 5000);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -40,7 +46,10 @@ export function useBluetoothMessages(device: BluetoothDevice | null) {
     connectAndListen();
 
     return () => {
-      subscription?.remove(); // Clean up listener
+      subscription?.remove();
+      if (interval){
+        clearInterval(interval);
+      }
     };
   }, [device]);
 
