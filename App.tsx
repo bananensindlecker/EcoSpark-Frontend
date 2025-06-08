@@ -36,10 +36,10 @@ export default function App() {
       <Button title="Abfolge 4 (2 Lichter verschoben)" onPress={() => sendMessage(connectedDevice,'2light,20,0000,5000,200?light,21,0200,5200,200')} />
 
       {/*Button zum Senden einer sequenz*/}
-      <Button title="Abfolge 5 (1 Licht)" onPress={() => sendMessage(connectedDevice,'2light,20,0000,5000,100')} />
+      <Button title="Abfolge 5 (8 Lichter)" onPress={() => sendMessage(connectedDevice,'2light,21,0000,5000,200?light,20,0100,5100,200?light,16,0200,5200,200?light,12,0300,5300,200?light,07,0400,5400,200?light,08,0500,5500,200?light,25,0600,5600,200?light,24,0700,5700,200')} />
 
       {/*Button zum Senden einer sequenz*/}
-      <Button title="Abfolge 6 (1 Licht)" onPress={() => sendMessage(connectedDevice,'2light,20,0000,5000,20')} />
+      <Button title="Abfolge 6 (8 Lichter)" onPress={() => sendMessage(connectedDevice,'2light,21,0000,5000?light,20,0100,5100?light,16,0200,5200?light,12,0300,5300?light,07,0400,5400?light,08,0500,5500?light,25,0600,5600?light,24,0700,5700')} />
 
       <Button title="Abfolge 7 (mit sound) wählen" onPress={async () => {
         try {
