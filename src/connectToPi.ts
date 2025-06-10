@@ -1,6 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import RNBluetoothClassic, { BluetoothDevice } from 'react-native-bluetooth-classic';
-import { sendMessage } from './sendMsg';
+import { sendMessage } from './sendMsg.ts';
 
 export async function connectToPi(
   setConnectedDevice: (device: BluetoothDevice) => void,

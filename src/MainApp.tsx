@@ -36,7 +36,7 @@ import {
   DocumentPickerResponse,
 } from '@react-native-documents/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connectToPi } from './communicateWithPi';
+import { connectToPi } from './connectToPi';
 import { useBluetoothMessages } from './readMsg';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import Sound from 'react-native-sound';
