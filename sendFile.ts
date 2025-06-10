@@ -51,7 +51,7 @@ export async function sendFile(
     }
     await device.write('\nEND\n');
     console.log('File sending finished');
-    return;
+    return Promise.resolve();
   } catch (err) {
     throw new Error('Send failed: ' + (err as Error).message);
   }

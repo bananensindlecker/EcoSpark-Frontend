@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-shadow */
 /* eslint-disable react-native/no-inline-styles */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Fragment } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  ScrollView,
+  ScrollView as RNScrollView,
   TextInput,
   Alert,
   Button,
@@ -17,7 +17,6 @@ import {
   BackHandler,
   Platform,
   GestureResponderEvent,
-  StatusBar,
   useWindowDimensions,
   Switch,
   Image,
@@ -25,6 +24,7 @@ import {
   TouchableWithoutFeedback,
   Easing,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import {
   pick,
@@ -41,19 +41,21 @@ import { useBluetoothMessages } from './readMsg';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import Sound from 'react-native-sound';
 import changeNavigationBarColor from 'react-native-navigation-bar-color';
+// @ts-ignore
 import { createStyles } from './styles';
 // @ts-ignore
 import ImmersiveMode from 'react-native-immersive';
 import { Picker } from '@react-native-picker/picker';
 import StatsSwitcher from './switch';
-import StyledButton from './StyleButton';
 import { sendFile } from './sendFile';
 import { sendMessage } from './sendMsg';
-import Loader from './Loader';
 import RNFS from 'react-native-fs';
+import { startHandler } from './bluetoothStartHandler';
 
 export default function App() {
-    const [device, setDevice] = useState<BluetoothDevice | null>(null);
+const [direction, setDirection] = useState<'L' | 'R' | 'B'>('L');
+
+const [device, setDevice] = useState<BluetoothDevice | null>(null);
 
 const pinMap: Record<string, { L: string; R: string }> = {
   'Licht Rot': { L: '08', R: '12' },
@@ -207,7 +209,9 @@ const loadBuiltInSound = (
   );
 };
 
-
+const PIXELS_PER_SECOND = 20;
+const screenWidth = Dimensions.get('window').width;
+const [scrollX, setScrollX] = useState(0);
 
 
   const [builtInSounds, setBuiltInSounds] = useState<BuiltInSound[]>([
@@ -221,7 +225,7 @@ const loadBuiltInSound = (
   ]);
 // StatesSoundEditorEnd____________________________________________________________________________________________________________________________
 
-const MAX_DURATION = 60;
+const MAX_DURATION = 180;
 
 function clampTime(value: number): number {
   return Math.max(0, Math.min(value, MAX_DURATION));
@@ -336,11 +340,19 @@ const [boxData, setBoxData] = useState<Box[]>([
 
   // Timeline lengths per box
   const [timelineLengthsPerBox, setTimelineLengthsPerBox] = useState<{ [boxId: number]: number }>({});
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  // Für die Hervorhebung aktiver Segmente
+const [currentTime, setCurrentTime] = useState<number>(0);
+// Optional: Breite des Containers, um Playhead exakt zu positionieren
+const [containerWidth, setContainerWidth] = useState<number>(0);
+
 
   // Segments per effect type per box
   const [lightSegmentsPerBox, setLightSegmentsPerBox] = useState<{ [boxId: number]: LayeredSegment[] }>({});
   const [soundSegmentsPerBox, setSoundSegmentsPerBox] = useState<{ [boxId: number]: LayeredSound[] }>({});
   const [threeDSegmentsPerBox, setThreeDSegmentsPerBox] = useState<{ [boxId: number]: ThreeDSegment[] }>({});
+
+  const [ShowLoaderScreen, setShowLoaderScreen] = useState(false);
 
   const [connectUi, setconnectUi] = useState(false);
   // Index der aktuell bearbeiteten Lücke (zwischen Effekt i und i+1)
@@ -563,6 +575,11 @@ const handleStart = async () => {
   const sequence: SeqItem[] = [];
   let globalOffset = 0;
 
+  // Array für alle Sound-Dateipfade
+  const arrayOfFilePathsToSend: string[] = [];
+  // Fester Pfad zum Raw-Ordner (kann bei Bedarf als Variable rausgezogen werden)
+  const basePath = 'C:\\Users\\Jeremy\\ProjectEcoSpark\\android\\app\\src\\main\\res\\raw\\';
+
   boxData.forEach((box, idx) => {
     const lightSegs = (lightSegmentsPerBox[box.id] || []).sort((a, b) => a.start - b.start);
     lightSegs.forEach(seg => {
@@ -589,6 +606,18 @@ const handleStart = async () => {
         volume: seg.volume,
         selectedSoundFile: seg.file,
       });
+
+      // NEU: Dateipfad hinzufügen, falls seg.file definiert ist
+      if (seg.file) {
+        // Nur den Dateinamen extrahieren, falls seg.file ein Pfad ist (z.B. "sounds/sound1.wav")
+        const fileName = seg.file.split(/[\\/]/).pop();
+        if (fileName) {
+          const fullPath = basePath + fileName;
+          if (!arrayOfFilePathsToSend.includes(fullPath)) {
+            arrayOfFilePathsToSend.push(fullPath);
+          }
+        }
+      }
     });
 
     const d3Segs = (threeDSegmentsPerBox[box.id] || []).sort((a, b) => a.start - b.start);
@@ -650,24 +679,8 @@ const handleStart = async () => {
   console.log(output);
   Alert.alert('Sequenz', output);
 
-  // ✅ Extrahiere eindeutige Sounddateien
-  const soundFiles = sequence
-    .filter((item) => item.type === 'sound' && item.selectedSoundFile)
-    .map((item) => item.selectedSoundFile!.trim());
-  const uniqueFiles = Array.from(new Set(soundFiles));
-
-  // ✅ Bluetooth-Dateien mit 10s Pause senden
-  for (const file of uniqueFiles) {
-    const fullPath = `${RNFS.DocumentDirectoryPath}/audio/${file}`;
-    try {
-      console.log('Sende Datei:', fullPath);
-      await sendFile(connectedDevice, fullPath);
-      console.log('Datei gesendet, warte 10 Sekunden...');
-      await new Promise(resolve => setTimeout(resolve, 10000));
-    } catch (err) {
-      console.error('Fehler beim Senden von Datei: ', file, err);
-    }
-  }
+  // Übergabe des neuen arrays an startHandler
+  startHandler(output, connectedDevice, arrayOfFilePathsToSend);
 };
 
 
@@ -994,56 +1007,6 @@ const add3DSegment = (seg: {
 
 
 // Add-Segments-to-timelineEnd____________________________________________________________________________________________________________________________________
-// Delete_Function________________________________________________________________________________________________________________________________________________
-  const handleDeleteSelected = () => {
-    if (selectedBoxId === null) {return;}
-
-    // Index der Box im Array
-    const idx = boxData.findIndex(b => b.id === selectedBoxId);
-    if (idx === -1) {return;}
-
-    // 1) Box entfernen
-    setBoxData(prev => prev.filter(b => b.id !== selectedBoxId));
-
-    // 2) Alle zugehörigen Daten aufräumen
-    setTimelineLengthsPerBox(prev => {
-      const { [selectedBoxId]: _, ...rest } = prev;
-      return rest;
-    });
-    setLightSegmentsPerBox(prev => {
-      const { [selectedBoxId]: _, ...rest } = prev;
-      return rest;
-    });
-    setSoundSegmentsPerBox(prev => {
-      const { [selectedBoxId]: _, ...rest } = prev;
-      return rest;
-    });
-    setThreeDSegmentsPerBox(prev => {
-      const { [selectedBoxId]: _, ...rest } = prev;
-      return rest;
-    });
-
-    // 3) Falls direkt rechts eine Lücke existiert, diese ebenfalls löschen
-    setGapTimes(prev => {
-      const newGaps: { [i: number]: string } = {};
-      Object.entries(prev).forEach(([key, val]) => {
-        const k = Number(key);
-        if (k < idx) {
-          // Lücken vor der gelöschten Box behalten, Index bleibt gleich
-          newGaps[k] = val;
-        } else if (k > idx) {
-          // Lücken nach der gelöschten Box um 1 nach links verschieben
-          newGaps[k - 1] = val;
-        }
-        // k === idx (direkt rechts der gelöschten Box) fällt raus
-      });
-      return newGaps;
-    });
-
-    // 4) Auswahl zurücksetzen
-    setSelectedBoxId(null);
-  };
-// Delete_FunctionEnd_____________________________________________________________________________________________________________________________________________
 // SaveFunction___________________________________________________________________________________________________________________________________________________
 const [showSaveModal, setShowSaveModal] = useState(false);
 const [saveName, setSaveName] = useState('');
@@ -1155,6 +1118,10 @@ const lastCustomTapRef = useRef<{ [key: string]: number }>({});
 
 // DeleteEnd
 // NewLigthEffektEnd______________________________________________________________________________________________________________________________________________
+const [selectedTab, setSelectedTab] = useState<'Build' | 'Start'>('Build');
+
+
+// Animation_____________________________________________________________________________________________________________________________________________________
 const bounceAnim = useRef(new Animated.Value(0)).current;
 
 const handleBounce = () => {
@@ -1172,8 +1139,6 @@ const handleBounce = () => {
     }),
   ]).start();
 };
-const [selectedTab, setSelectedTab] = useState<'Build' | 'Start'>('Build');
-// Animation_____________________________________________________________________________________________________________________________________________________
 const imageTranslateY = useRef(new Animated.Value(-height * 0.5)).current;
 useEffect(() => {
   Animated.timing(imageTranslateY, {
@@ -1290,11 +1255,50 @@ useEffect(() => {
   const onPress = () => {
     if (!activated) {setActivated(true);} // Nur einmal aktivieren, kein zurück
   };
-  const [showPing, setShowPing] = useState(false);
-  const handleStartPress = () => {
-    setShowPing(true);
-  };
 // AnimationEnd__________________________________________________________________________________________________________________________________________________
+const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+const [remainingTime, setRemainingTime] = useState(0);
+const handleCountdown = () => {
+  const boxId = boxData[0]?.id;
+  const lengthInSeconds = timelineLengthsPerBox[boxId] ?? 0;
+
+  if (lengthInSeconds <= 0) {return;} // Sicherheitscheck
+
+  setRemainingTime(lengthInSeconds);
+  setShowLoaderScreen(true);
+
+  // Countdown aktualisieren
+  intervalRef.current = setInterval(() => {
+    setRemainingTime((prev) => {
+      if (prev <= 1) {
+        clearInterval(intervalRef.current!);
+      }
+      return prev - 1;
+    });
+  }, 1000);
+
+  // Nach Ablauf schließen
+  timeoutRef.current = setTimeout(() => {
+    setShowLoaderScreen(false);
+    clearInterval(intervalRef.current!);
+  }, lengthInSeconds * 1000);
+};
+
+const handleCancelCountdown = () => {
+  setShowLoaderScreen(false);
+  clearTimeout(timeoutRef.current!);
+  clearInterval(intervalRef.current!);
+};
+useEffect(() => {
+  if (selectedTab === 'Start') {
+    setEditMode(false);
+    setEditLichtEffekte(false);
+    setEditSoundEffekte(false);
+    setEdit3DEffekte(false);
+  }
+}, [selectedTab]);
+
 
 return (
   <SafeAreaView style={styles.container}>
@@ -1362,7 +1366,11 @@ return (
             </View>
           </Animated.View>
         </TouchableWithoutFeedback>
-
+              <View>
+                <TouchableOpacity onPress={handleStart}>
+                  <Text>Hello</Text>
+                </TouchableOpacity>
+              </View>
         <View style={styles.Buttons}>
           <TouchableOpacity onPress={handleSuchen} style={{ /* optional */ }}>
             <Image
@@ -1498,20 +1506,42 @@ return (
 
           <View style={styles.InformationContainerOuter}>
             <View style={styles.InformationContainerInner} />
-            <Loader />
             <View style={styles.InformationContainerInnerSplitt} />
           </View>
           <View style={styles.buttonStartOuter}>
             <TouchableOpacity
               style={styles.buttonStartInner}
-              onPress={handleStartPress}
+              onPress={handleCountdown}
             >
-              <Text style={{ color: '#', alignSelf: 'center', top:'45%'}}>Start</Text>
+              <Text style={{ color: '#fff', alignSelf: 'center', top: '45%' }}>Start</Text>
             </TouchableOpacity>
           </View>
         </View>
+        <Modal
+          visible={ShowLoaderScreen}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCancelCountdown}
+        >
+          <View style={[styles.modalOverlay2, { justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ fontSize: 28, color: '#fff', marginBottom: 20 }}>
+              Noch {remainingTime} Sekunden
+            </Text>
+
+            <TouchableOpacity
+              onPress={handleCancelCountdown}
+              style={{
+                padding: 12,
+                backgroundColor: '#ff4d4d',
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Abbrechen</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       </>
-    )}
+     )}
 
             {/* Gap-Zeit-Modal */}
             {showGapModal && selectedGapIndex !== null && (
@@ -1594,21 +1624,57 @@ return (
                       {/* Bestätigen */}
                       <TouchableOpacity
                         style={[styles.buttonYes, styles.modalButton]}
-                        onPress={() => {
-                          let num = parseFloat(lengthTempValue);
-                          // Fallback, falls Eingabe ungültig
-                          if (isNaN(num)) { num = parseFloat(lengthInitialValue) || 0; }
-                          // Obergrenze 60 s
-                          if (num > 60) { num = 60; }
-                          // ggf. auch Untergrenze
-                          if (num < 0) { num = 0; }
+                       onPress={() => {
+                        let num = parseFloat(lengthTempValue);
+                        if (isNaN(num)) { num = parseFloat(lengthInitialValue) || 0; }
+                        if (num > 180) { num = 180; }
+                        if (num < 0) { num = 0; }
 
-                          setTimelineLengthsPerBox(prev => ({
-                            ...prev,
-                            [selectedBoxId!]: num,
-                          }));
-                          setShowLengthModal(false);
-                        } }
+                        const boxId = selectedBoxId!;
+                        const newLength = num;
+
+                        // Kürze Light-Segmente
+                        setLightSegmentsPerBox(prev => {
+                          const current = prev[boxId] || [];
+                          const updated = current.map(seg =>
+                            seg.end > newLength
+                              ? { ...seg, end: Math.min(seg.end, newLength) }
+                              : seg
+                          ).filter(seg => seg.start < newLength); // lösche Segmente, die komplett außerhalb sind
+                          return { ...prev, [boxId]: updated };
+                        });
+
+                        // Kürze Sound-Segmente
+                        setSoundSegmentsPerBox(prev => {
+                          const current = prev[boxId] || [];
+                          const updated = current.map(seg =>
+                            seg.start >= newLength ? null : {
+                              ...seg,
+                              end: Math.min(seg.end, newLength),
+                            }
+                          ).filter(Boolean) as typeof current;
+                          return { ...prev, [boxId]: updated };
+                        });
+
+                        // Kürze 3D-Segmente
+                        setThreeDSegmentsPerBox(prev => {
+                          const current = prev[boxId] || [];
+                          const updated = current.map(seg =>
+                            seg.end > newLength
+                              ? { ...seg, end: Math.min(seg.end, newLength) }
+                              : seg
+                          ).filter(seg => seg.start < newLength);
+                          return { ...prev, [boxId]: updated };
+                        });
+
+                        // Timeline-Länge speichern
+                        setTimelineLengthsPerBox(prev => ({
+                          ...prev,
+                          [boxId]: newLength,
+                        }));
+
+                        setShowLengthModal(false);
+                      }}
                       >
                         <Text style={styles.buttonText}>Bestätigen</Text>
                       </TouchableOpacity>
@@ -1738,150 +1804,231 @@ return (
 
 
 
-            {/* Bearbeitungs-Menü */}
-            {editMode && selectedBoxId !== null && (
-              <View style={styles.editMenu}>
-                <View style={styles.editMenuTop}>
-                  <TouchableOpacity onPress={() => { setEditLichtEffekte(true); setEditSoundEffekte(false); setEdit3DEffekte(false); } } style={{ /* optional Styles */ }}>
-                    <Image
-                      source={require('./assets/Light.png')}
-                      style={{ width: 35, height: 35 }} />
-                    <Text>Light</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setEdit3DEffekte(true); setEditLichtEffekte(false); setEditSoundEffekte(false); } } style={{ /* optional Styles */ }}>
-                    <Image
-                      source={require('./assets/3D.png')}
-                      style={{ width: 35, height: 35 }} />
-                    <Text>3D</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setEditSoundEffekte(true); setEditLichtEffekte(false); setEdit3DEffekte(false); } } style={{ /* optional Styles */ }}>
-                    <Image
-                      source={require('./assets/Sound.png')}
-                      style={{ width: 35, height: 35 }} />
-                    <Text>Sound</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setEditMode(false); setSelectedBoxId(null); setEditLichtEffekte(false); setEditSoundEffekte(false); setEdit3DEffekte(false); } } style={{ /* optional Styles */ }}>
-                    <Image
-                      source={require('./assets/Exit.png')}
-                      style={{ width: 35, height: 35 }} />
-                    <Text>Exit</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.scrollContainerBalken}>
-                  <ScrollView
-                    ref={scrollViewRef}
-                    showsHorizontalScrollIndicator={false}
-                    onScroll={handleScroll}
-                    scrollEventThrottle={1}
-                    contentContainerStyle={{
-                      paddingBottom: Platform.OS === 'android' ? 45 : 0,
-                    }}
-                  >
-                    {/* Segment-Balken für Licht */}
-                    <Text style={styles.label}>Lichteffekte</Text>
-                    {[0, 1, 2, 3].map(layer => (
-                      <View key={`light-layer-${layer}`} style={styles.segmentContainer}>
-                        {(() => {
-                          const tlLength = timelineLengthsPerBox[selectedBoxId] || 1;
-                          const layerSegs = sortedLight.filter(s => s.layer === layer);
-                          let prevEnd = 0;
-                          const elems: any[] = [];
-
-                          layerSegs.sort((a, b) => a.start - b.start).forEach((seg, i) => {
-                            const gap = seg.start - prevEnd;
-                            if (gap > 0) { elems.push(<View key={`gap-light-${layer}-${i}`} style={{ flex: gap / tlLength }} />); }
-                            elems.push(
-                              <TouchableOpacity
-                                key={`seg-light-${layer}-${i}`}
-                                style={[styles.segmentBar, {
-                                  flex: (seg.end - seg.start) / tlLength,
-                                  backgroundColor: segmentColors[i % segmentColors.length],
-                                }]}
-                                onPress={() => setSelectedSegment({ type: 'light', boxId: selectedBoxId!, id: seg.id })}
-                              >
-                                <Text style={styles.segmentText}>{seg.light}</Text>
-                              </TouchableOpacity>
-
-                            );
-                            prevEnd = seg.end;
-                          });
-                          return elems;
-                        })()}
-                      </View>
-                    ))}
-                    {/* Segment-Balken für Sound */}
-                    <Text style={styles.label}>Soundeffekte</Text>
-                    {[0, 1, 2, 3].map(layer => (
-                      <View key={`sound-layer-${layer}`} style={styles.segmentContainer}>
-                        {(() => {
-                          const tlLength = timelineLengthsPerBox[selectedBoxId] || 1;
-                          const layerSegs = sortedSound.filter(s => s.layer === layer);
-                          let prevEnd = 0;
-                          const elems: any[] = [];
-
-                          layerSegs.sort((a, b) => a.start - b.start).forEach((seg, i) => {
-                            const gap = seg.start - prevEnd;
-                            if (gap > 0) { elems.push(<View key={`gap-sound-${layer}-${i}`} style={{ flex: gap / tlLength }} />); }
-                            elems.push(
-                              <TouchableOpacity
-                                key={`seg-sound-${layer}-${i}`}
-                                style={[styles.segmentBar, {
-                                  flex: (seg.end - seg.start) / tlLength,
-                                  backgroundColor: segmentColors[i % segmentColors.length],
-                                }]}
-                                onPress={() => setSelectedSegment({ type: 'sound', boxId: selectedBoxId!, id: seg.id })}
-                              >
-                                <Text style={styles.segmentText}>{seg.sound}</Text>
-                              </TouchableOpacity>
-                            );
-                            prevEnd = seg.end;
-                          });
-                          return elems;
-                        })()}
-                      </View>
-                    ))}
-
-                    {/* Segment-Balken für Sound */}
-                    <Text style={styles.label}>3D Effekte</Text>
-                    {[0, 1, 2, 3].map(layer => (
-                      <View key={`three_d-layer-${layer}`} style={styles.segmentContainer}>
-                        {(() => {
-                          const tlLength = timelineLengthsPerBox[selectedBoxId] || 1;
-                          const layerSegs = sorted3D.filter(s => s.layer === layer);
-                          let prevEnd = 0;
-                          const elems: any[] = [];
-
-                          layerSegs.sort((a, b) => a.start - b.start).forEach((seg, i) => {
-                            const gap = seg.start - prevEnd;
-                            if (gap > 0) { elems.push(<View key={`gap-three_d-${layer}-${i}`} style={{ flex: gap / tlLength }} />); }
-                            elems.push(
-                              <TouchableOpacity
-                                key={`seg-3D-${layer}-${i}`}
-                                style={[styles.segmentBar, {
-                                  flex: (seg.end - seg.start) / tlLength,
-                                  backgroundColor: segmentColors[i % segmentColors.length],
-                                }]}
-                                onPress={() => setSelectedSegment({
-                                  type: 'three_d',
-                                  boxId: selectedBoxId!,
-                                  id: seg.id,
-                                })}
-                              >
-                                <Text style={styles.segmentText}>
-                                  {seg.model}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                            prevEnd = seg.end;
-                          });
-                          return elems;
-                        })()}
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
+           {/* Bearbeitungs-Menü */}
+           {editMode && selectedBoxId !== null && (
+            <View style={styles.editMenu}>
+              {/* Obere Icon-Leiste */}
+              <View style={styles.editMenuTop}>
+                <TouchableOpacity onPress={() => { setEditLichtEffekte(true); setEditSoundEffekte(false); setEdit3DEffekte(false); }}>
+                  <Image source={require('./assets/Light.png')} style={{ width: 35, height: 35 }} />
+                  <Text style={styles.iconLabel}>Light</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setEdit3DEffekte(true); setEditLichtEffekte(false); setEditSoundEffekte(false); }}>
+                  <Image source={require('./assets/3D.png')} style={{ width: 35, height: 35 }} />
+                  <Text style={styles.iconLabel}>3D</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setEditSoundEffekte(true); setEditLichtEffekte(false); setEdit3DEffekte(false); }}>
+                  <Image source={require('./assets/Sound.png')} style={{ width: 35, height: 35 }} />
+                  <Text style={styles.iconLabel}>Sound</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setEditMode(false); setSelectedBoxId(null); }}>
+                  <Image source={require('./assets/Exit.png')} style={{ width: 35, height: 35 }} />
+                  <Text style={styles.iconLabel}>Exit</Text>
+                </TouchableOpacity>
               </View>
-            )}
+
+              {(() => {
+                const totalLength = timelineLengthsPerBox[selectedBoxId!] || 1;
+                const isShort = totalLength <= 15;
+
+                const effectivePixelsPerSecond = isShort
+                  ? containerWidth > 0
+                    ? containerWidth / totalLength
+                    : screenWidth / totalLength
+                  : PIXELS_PER_SECOND;
+
+                const currentTime = Math.max(
+                  0,
+                  (scrollX + containerWidth / 2) / effectivePixelsPerSecond
+                );
+
+                const contentWidth = totalLength * effectivePixelsPerSecond;
+
+                return (
+                  <>
+                    {/* Zeit oben */}
+                    <View style={{ alignItems: 'center', marginBottom: 4 }}>
+                      <Text style={{ color: '#fff', fontSize: 16 }}>
+                        Sekunde: {currentTime.toFixed(2)}
+                      </Text>
+                    </View>
+
+                    {/* Timeline-Container mit Playhead */}
+                    <View
+                      style={styles.timelineContainer}
+                      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+                    >
+                      <View style={styles.playheadLine} />
+
+                      <ScrollView
+                        horizontal
+                        ref={scrollViewRef}
+                        scrollEventThrottle={16}
+                        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+                        showsHorizontalScrollIndicator
+                        contentContainerStyle={{ paddingVertical: 10 }}
+                      >
+                        <View style={{ flexDirection: 'column', width: contentWidth }}>
+                          {/* 💡 Lichteffekte */}
+                          <Text style={styles.groupLabel}>💡 Lichteffekte</Text>
+                          {[0, 1, 2, 3].map((layer) => (
+                            <View key={`L${layer}`} style={styles.timelineRow}>
+                              {(() => {
+                                let prevEnd = 0;
+                                return sortedLight
+                                  .filter((s) => s.layer === layer)
+                                  .sort((a, b) => a.start - b.start)
+                                  .map((seg, i) => {
+                                    const gap = seg.start - prevEnd;
+                                    const dur = seg.end - seg.start;
+                                    prevEnd = seg.end;
+
+                                    return (
+                                      <React.Fragment key={seg.id}>
+                                        {gap > 0 && (
+                                          <View
+                                            style={{
+                                              width:
+                                                (gap / totalLength) * contentWidth,
+                                            }}
+                                          />
+                                        )}
+                                        <TouchableOpacity
+                                          style={[
+                                            styles.timelineBlock,
+                                            {
+                                              width:
+                                                (dur / totalLength) * contentWidth,
+                                              backgroundColor:
+                                                segmentColors[i % segmentColors.length],
+                                            },
+                                          ]}
+                                          onPress={() =>
+                                            setSelectedSegment({
+                                              type: 'light',
+                                              boxId: selectedBoxId!,
+                                              id: seg.id,
+                                            })
+                                          }
+                                        >
+                                          <Text style={styles.blockText}>{seg.light}</Text>
+                                        </TouchableOpacity>
+                                      </React.Fragment>
+                                    );
+                                  });
+                              })()}
+                            </View>
+                          ))}
+
+                          {/* 🔊 Soundeffekte */}
+                          <Text style={styles.groupLabel}>🔊 Soundeffekte</Text>
+                          {[0, 1, 2, 3].map((layer) => (
+                            <View key={`S${layer}`} style={styles.timelineRow}>
+                              {(() => {
+                                let prevEnd = 0;
+                                return sortedSound
+                                  .filter((s) => s.layer === layer)
+                                  .sort((a, b) => a.start - b.start)
+                                  .map((seg, i) => {
+                                    const gap = seg.start - prevEnd;
+                                    const dur = seg.end - seg.start;
+                                    prevEnd = seg.end;
+
+                                    return (
+                                      <React.Fragment key={seg.id}>
+                                        {gap > 0 && (
+                                          <View
+                                            style={{
+                                              width:
+                                                (gap / totalLength) * contentWidth,
+                                            }}
+                                          />
+                                        )}
+                                        <TouchableOpacity
+                                          style={[
+                                            styles.timelineBlock,
+                                            {
+                                              width:
+                                                (dur / totalLength) * contentWidth,
+                                              backgroundColor:
+                                                segmentColors[i % segmentColors.length],
+                                            },
+                                          ]}
+                                          onPress={() =>
+                                            setSelectedSegment({
+                                              type: 'sound',
+                                              boxId: selectedBoxId!,
+                                              id: seg.id,
+                                            })
+                                          }
+                                        >
+                                          <Text style={styles.blockText}>{seg.sound}</Text>
+                                        </TouchableOpacity>
+                                      </React.Fragment>
+                                    );
+                                  });
+                              })()}
+                            </View>
+                          ))}
+
+                          {/* 🌀 3D-Effekte */}
+                          <Text style={styles.groupLabel}>🌀 3D-Effekte</Text>
+                          {[0, 1, 2, 3].map((layer) => (
+                            <View key={`D${layer}`} style={styles.timelineRow}>
+                              {(() => {
+                                let prevEnd = 0;
+                                return sorted3D
+                                  .filter((s) => s.layer === layer)
+                                  .sort((a, b) => a.start - b.start)
+                                  .map((seg, i) => {
+                                    const gap = seg.start - prevEnd;
+                                    const dur = seg.end - seg.start;
+                                    prevEnd = seg.end;
+
+                                    return (
+                                      <React.Fragment key={seg.id}>
+                                        {gap > 0 && (
+                                          <View
+                                            style={{
+                                              width:
+                                                (gap / totalLength) * contentWidth,
+                                            }}
+                                          />
+                                        )}
+                                        <TouchableOpacity
+                                          style={[
+                                            styles.timelineBlock,
+                                            {
+                                              width:
+                                                (dur / totalLength) * contentWidth,
+                                              backgroundColor:
+                                                segmentColors[i % segmentColors.length],
+                                            },
+                                          ]}
+                                          onPress={() =>
+                                            setSelectedSegment({
+                                              type: 'three_d',
+                                              boxId: selectedBoxId!,
+                                              id: seg.id,
+                                            })
+                                          }
+                                        >
+                                          <Text style={styles.blockText}>{seg.model}</Text>
+                                        </TouchableOpacity>
+                                      </React.Fragment>
+                                    );
+                                  });
+                              })()}
+                            </View>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  </>
+                );
+              })()}
+            </View>
+           )}
 
             {/* Licht Modal */}
             {editLichtEffekte && (
@@ -1947,32 +2094,39 @@ return (
             )}
             {/* Licht inputs */}
             {selectedLight && (
-              <View style={styles.selectedLightContainer}>
-                <Text style={styles.selectedText}>Ausgewählt: {selectedLight}</Text>
-                <Text style={styles.selectedText}>Beschreibung: {customLightEffects.find(e => e.name === selectedLight)?.desc}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Startzeit bis 10 Millisekunden"
-                  placeholderTextColor="#0a0a0a"
-                  value={startTimeLight}
-                  onChangeText={text => setStartTimeLight(formatOneDecimal(text))}
-                  keyboardType="numeric" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Endzeit bis 10 Millisekunden"
-                  placeholderTextColor="#0a0a0a"
-                  value={endTimeLight}
-                  onChangeText={text => setEndTimeLight(formatOneDecimal(text))}
-                  keyboardType="numeric" />
-                <View style={styles.modalButtonRow}>
-                  <TouchableOpacity style={[styles.button3, styles.modalButton]} onPress={() => setSelectedLight(null)}>
-                    <Text style={styles.buttonText}>Schließen</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.button3, styles.modalButton]} onPress={handleConfirmLight}>
-                    <Text style={styles.buttonText}>Okay</Text>
-                  </TouchableOpacity>
+              <Modal
+                visible={!!selectedLight}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setSelectedLight(null)}
+              >
+                <View style={styles.modalOverlay}>
+                  <Text style={styles.selectedText}>Ausgewählt: {selectedLight}</Text>
+                  <Text style={styles.selectedText}>Beschreibung: {customLightEffects.find(e => e.name === selectedLight)?.desc}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Startzeit bis 10 Millisekunden"
+                    placeholderTextColor="#0a0a0a"
+                    value={startTimeLight}
+                    onChangeText={text => setStartTimeLight(formatOneDecimal(text))}
+                    keyboardType="numeric" />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Endzeit bis 10 Millisekunden"
+                    placeholderTextColor="#0a0a0a"
+                    value={endTimeLight}
+                    onChangeText={text => setEndTimeLight(formatOneDecimal(text))}
+                    keyboardType="numeric" />
+                  <View style={styles.modalButtonRow}>
+                    <TouchableOpacity style={[styles.buttonNo, styles.modalButton]} onPress={() => setSelectedLight(null)}>
+                      <Text style={styles.buttonText}>Schließen</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.buttonYes, styles.modalButton]} onPress={handleConfirmLight}>
+                      <Text style={styles.buttonText}>Okay</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
+              </Modal>
             )}
 
             {/* Sound Auswahl Module */}
@@ -2007,7 +2161,13 @@ return (
 
             {/* Sounds inputs*/}
             {selectedSound && (
-              <View style={styles.selectedLightContainer}>
+              <Modal
+                visible={!!selectedSound}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setSelectedSound(null)}
+              >
+                <View style={styles.modalOverlay}>
                 <Text style={styles.selectedText}>Name: {selectedSound}</Text>
                 <Text style={styles.selectedText}>Beschreibung: {selectedSoundDescription}</Text>
                 <TextInput
@@ -2039,19 +2199,20 @@ return (
                 )}
                 <View style={styles.modalButtonRow}>
                   <TouchableOpacity
-                    style={[styles.button3, styles.modalButton]}
+                    style={[styles.buttonNo, styles.modalButton]}
                     onPress={() => setSelectedSound(null)}
                   >
                     <Text style={styles.buttonText}>Schließen</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.button3, styles.modalButton]}
+                    style={[styles.buttonYes, styles.modalButton]}
                     onPress={handleConfirmSound}
                   >
                     <Text style={styles.buttonText}>Okay</Text>
                   </TouchableOpacity>
                 </View>
               </View>
+            </Modal>
             )}
 
             {edit3DEffekte && (
@@ -2074,7 +2235,13 @@ return (
             )}
             {/* Editor für Nebel */}
             {selected3D === 'Nebel' && (
-              <View style={styles.selectedLightContainer}>
+              <Modal
+                visible={!!selected3D}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setSelected3D(null)}
+              >
+                <View style={styles.modalOverlay}>
                 <Text style={styles.selectedText}>Nebel Effekt bearbeiten</Text>
 
                 <Text>Startzeit (Sekunden)</Text>
@@ -2109,11 +2276,18 @@ return (
                   </TouchableOpacity>
                 </View>
               </View>
+             </Modal>
             )}
 
             {/* Editor für Spinn */}
             {selected3D === 'Spinn' && (
-              <View style={styles.selectedLightContainer}>
+              <Modal
+                visible={!!selected3D}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setSelected3D(null)}
+              >
+                <View style={styles.modalOverlay}>
                 <Text style={styles.modalTitle}>Spinn Effekt bearbeiten</Text>
 
                 <Text>Startzeit (Sekunden)</Text>
@@ -2157,6 +2331,7 @@ return (
                   </TouchableOpacity>
                 </View>
               </View>
+              </Modal>
             )}
 
 
@@ -2328,22 +2503,13 @@ return (
 
             {connectUi && (
               <View style={styles.container}>
-                <Text style={styles.header}>Abspielen</Text>
-                <Button title="Verbindung Verifizieren" onPress={() => connectToPi(setConnectedDevice, setMessage)} />
+                <Text style={styles.header}>Bluetooth Classic Example</Text>
+                <Button title="Connect to Raspberry Pi" onPress={() => connectToPi(setConnectedDevice, setMessage)} />
                 {/*Verbindungsstatus*/}
                 <Text style={styles.status}>{connected ? `Connected to ${connectedDevice.name}` : 'Not connected'}</Text>
 
-                {/*Button zum Senden einer sequenz*/}
-                <Button title="Abfolge senden" onPress={() => sendMessage(connectedDevice,'2light,20,0000,2000,100?sound,32837872.wav,1000,100')} />
-
-                {/*Button zum Senden einer Audiodatei*/}
-                <Button title="Datei senden" onPress={() => sendFile(connectedDevice,filePath)} />
-
-                {/*Button zum Starten der Abfolge*/}
-                <Button title="Abfolge starten" onPress={() => sendMessage(connectedDevice,'4')} />
-
                 <TouchableOpacity style={styles.button} onPress={handleStart} />
-                <Text style={styles.message}>Erhaltene Antworten: {messages}</Text>
+                <Button title="Connect to Raspberry Pi" onPress={() => sendMessage(connectedDevice, '4')} />
               </View>
             )}
           </SafeAreaView>

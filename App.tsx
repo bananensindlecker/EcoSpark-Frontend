@@ -36,7 +36,7 @@ export default function App() {
       <Button title="Abfolge 4 (2 Lichter verschoben)" onPress={() => sendMessage(connectedDevice,'2light,20,0000,5000,200?light,21,0200,5200,200')} />
 
       {/*Button zum Senden einer sequenz*/}
-      <Button title="Abfolge 5 (8 Lichter)" onPress={() => sendMessage(connectedDevice,'2light,21,0000,5000,200?light,20,0100,5100,200?light,16,0200,5200,200?light,12,0300,5300,200?light,07,0400,5400,200?light,08,0500,5500,200?light,25,0600,5600,200?light,24,0700,5700,200')} />
+      <Button title="Abfolge 5 (8 Lichter)" onPress={() => sendMessage(connectedDevice,'2light,21,0000,15000,960?light,20,0100,15100,960?light,16,0200,15200,960?light,12,0300,15300,960?light,07,0400,15400,960?light,08,0500,15500,960?light,25,0600,15600,960?light,24,0700,15700,960')} />
 
       {/*Button zum Senden einer sequenz*/}
       <Button title="Abfolge 6 (8 Lichter)" onPress={() => sendMessage(connectedDevice,'2light,21,0000,5000?light,20,0100,5100?light,16,0200,5200?light,12,0300,5300?light,07,0400,5400?light,08,0500,5500?light,25,0600,5600?light,24,0700,5700')} />
@@ -53,6 +53,7 @@ export default function App() {
 
       {/*Button zum Starten der Abfolge*/}
       <Button title="Abfolge starten" onPress={() => sendMessage(connectedDevice,'4')} />
+      <Button title="Abfolge stoppen" onPress={() => sendMessage(connectedDevice,'5')} />
 
       <Text style={styles.message}>Erhaltene Antworten: {messages}</Text>
     </View>
