@@ -680,7 +680,11 @@ const handleStart = async () => {
   Alert.alert('Sequenz', output);
 
   // Übergabe des neuen arrays an startHandler
-  startHandler(output, connectedDevice, arrayOfFilePathsToSend);
+  try {
+    await startHandler(output, connectedDevice, arrayOfFilePathsToSend);
+  } catch (e) {
+    Alert.alert('Bluetooth Fehler', (e as Error).message);
+  }
 };
 
 
