@@ -8,12 +8,19 @@ export async function connectToPi(
     ): Promise<void> {
     try {
     if (Platform.OS === 'android') {
-      await PermissionsAndroid.requestMultiple([
+      const granted = await PermissionsAndroid.requestMultiple([
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
       ]);
+      const allGranted = Object.values(granted).every(
+        permission => permission === PermissionsAndroid.RESULTS.GRANTED
+      );
+      if (!allGranted) {
+        setMessage('Bluetooth permissions are required to connect.');
+        return;
+      }
     }
 
     const devices = await RNBluetoothClassic.getBondedDevices();

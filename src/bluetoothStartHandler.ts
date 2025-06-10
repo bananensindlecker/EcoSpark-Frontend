@@ -2,7 +2,7 @@ import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import { sendFile } from './sendFile';
 import { sendMessage } from './sendMsg';
 
-function waitForResponse(device: BluetoothDevice, expected: string, timeout = 10000): Promise<void> {
+function waitForResponse(device: BluetoothDevice, expected: string, timeout = 120000): Promise<void> {
     return new Promise((resolve, reject) => {
         const subscription = device.onDataReceived((event) => {
             if (event.data?.includes(expected)) {
