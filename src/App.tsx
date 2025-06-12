@@ -14,10 +14,11 @@ export default function App() {
   const { messages,connected} = useBluetoothMessages(connectedDevice);
   let filePath1 = '/storage/emulated/0/Download/test.wav'; // Pfad zur Audiodatei
   let filePath2 = '/storage/emulated/0/Download/test2.wav'; // Pfad zur Audiodatei
+  let password = '1234'; // Passwort für die Verbindung, kann angepasst werden
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Bluetooth Verbindungs Demonstration</Text>
-      <Button title="Connect to Raspberry Pi" onPress={() => connectToPi(setConnectedDevice, setMessage)} />
+      <Button title="Connect to Raspberry Pi" onPress={() => connectToPi(setConnectedDevice, password,setMessage)} />
       {/*Verbindungsstatus*/}
       <Text style={styles.status}>{connected ? `Connected to ${connectedDevice.name}` : 'Not connected'}</Text>
 

@@ -4,6 +4,7 @@ import { sendMessage } from './sendMsg.ts';
 
 export async function connectToPi(
   setConnectedDevice: (device: BluetoothDevice) => void,
+  password: string,
   setMessage: (message: string) => void
     ): Promise<void> {
     try {
@@ -22,6 +23,10 @@ export async function connectToPi(
         return;
       }
     }
+    if (!password){
+      setMessage('Password is required.');
+      return;
+    }
 
     const devices = await RNBluetoothClassic.getBondedDevices();
     const pi = devices.find(
@@ -37,7 +42,7 @@ export async function connectToPi(
     if (connected) {
       setConnectedDevice(pi);
 
-      await sendMessage(pi, '0');
+      await sendMessage(pi, '0' + password);
     } else {
       setMessage('Failed to connect.');
     }
