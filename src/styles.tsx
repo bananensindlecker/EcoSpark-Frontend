@@ -8,7 +8,7 @@ export function createStyles(width: number, height: number) {
     // Grundcontainer
     container: {
       flex: 1,
-      backgroundColor: '#0000',
+      backgroundColor: 'rgb(32, 31, 31)',
     },
 
     // Information-Container (äußere Box)
@@ -107,8 +107,14 @@ export function createStyles(width: number, height: number) {
       fontSize: 16 * scale,
     },
     buttonText: {
-      fontSize: 16 * scale,
+      fontSize:13 * scale,
       textAlign: 'center',
+      color: 'rgb(255, 255, 255)',
+    },
+    buttonTextBlack: {
+      fontSize:13 * scale,
+      textAlign: 'center',
+      color: 'rgb(0, 0, 0)',
     },
    buttonStartOuter: {
     position: 'absolute',
@@ -137,7 +143,7 @@ export function createStyles(width: number, height: number) {
     EffektContainer: {
       position: 'absolute',
       top: '15%',
-      height: '30%',               // feste Höhe in Scale
+      height: '25%',               // feste Höhe in Scale
       width: '90%',
       zIndex: 0,
       alignSelf: 'center',
@@ -153,26 +159,7 @@ export function createStyles(width: number, height: number) {
       zIndex: 0,
     },
     selectedBox: {
-
-    },
-
-    // Gap-Box
-    smallBox: {
-      width: 50 * scale,
-      height: 50 * scale,
-      backgroundColor: '#85A947',
-      borderRadius: 8 * scale,
-      marginRight: 10 * scale,
-      marginTop: 100 * scale,            // z. B. 100 px in Scale
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    smallBoxText: {
-      position: 'absolute',
-      fontSize: 12 * scale,
-      color: '#000',
-      marginLeft: 1 * scale,
-      marginTop: 1 * scale,
+      backgroundColor: '#fff',
     },
 
     // Plus-Button
@@ -221,6 +208,7 @@ export function createStyles(width: number, height: number) {
     selectedText: {
       fontSize: 16 * scale,
       fontWeight: 'bold',
+      color: 'rgb(255, 255, 255)',
     },
     selectedTextDoubleTap: {
       color: 'blue',
@@ -262,6 +250,7 @@ export function createStyles(width: number, height: number) {
       flexDirection: 'row',
       justifyContent: 'space-around',
       marginBottom: 10 * scale,
+      backgroundColor: 'rgb(33, 33, 33)',
     },
     label: {
       fontSize: 16 * scale,
@@ -283,13 +272,13 @@ export function createStyles(width: number, height: number) {
       top: height * 0.30,               // 30% von oben
       left: width * 0.10,               // 10% von links
       right: width * 0.10,              // 10% von rechts
-      backgroundColor: '#fff',
+      backgroundColor: 'rgb(32, 31, 31)',
       padding: 20 * scale,
       borderRadius: 10 * scale,
       shadowColor: '#000',
       shadowOpacity: 0.3,
       shadowRadius: 6 * scale,
-      elevation: 10,
+      elevation: 20,
       zIndex: 9999,
     },
       modalOverlay2: {
@@ -299,13 +288,13 @@ export function createStyles(width: number, height: number) {
       alignItems: 'center',
     },
     modalContainer: {
-      backgroundColor: '#fff',
+      backgroundColor: 'rgb(32, 31, 31)',
       borderRadius: 8 * scale,
       padding: 20 * scale,
     },
     modalContent: {
       width: '80%',
-      backgroundColor: '#fff',
+      backgroundColor: 'rgb(32, 31, 31)',
       borderRadius: 8 * scale,
       padding: 16 * scale,
     },
@@ -313,6 +302,8 @@ export function createStyles(width: number, height: number) {
       fontSize: 18 * scale,
       fontWeight: 'bold',
       marginBottom: 8 * scale,
+      alignSelf: 'center',
+      color: '#fff',
     },
     modalText: {
       fontSize: 16 * scale,
@@ -353,8 +344,8 @@ export function createStyles(width: number, height: number) {
       bottom: 0,
       left: 0,
       right: 0,
-      top: '70%',                         // prozentual
-      backgroundColor: '#d6d5d2',
+      top: '80%',                         // prozentual
+      backgroundColor: 'rgb(22, 21, 21)',
       borderTopLeftRadius: 20 * scale,
       borderTopRightRadius: 20 * scale,
       padding: 16 * scale,
@@ -366,7 +357,7 @@ export function createStyles(width: number, height: number) {
     editLichtEffekteTop: {
       flexDirection: 'row',
       justifyContent: 'space-around',
-      marginBottom: 20 * scale,
+      marginBottom: 1 * scale,
     },
 
 
@@ -380,7 +371,7 @@ export function createStyles(width: number, height: number) {
       marginTop: 10 * scale,
       marginBottom: 10 * scale,
       backgroundColor: '#f5f5f5',
-      color: 'black',
+      color: 'rgb(0, 0, 0)',
     },
 
     // Import-Mode (unten)
@@ -402,7 +393,7 @@ export function createStyles(width: number, height: number) {
     editButton: {
       padding: 20 * scale,
       margin: 12 * scale,
-      backgroundColor: '#42a265',
+      backgroundColor: 'rgb(32, 31, 31)',
       borderRadius: 8 * scale,
       alignItems: 'center',
       justifyContent: 'center',
@@ -630,12 +621,23 @@ export function createStyles(width: number, height: number) {
     },
     iconLabel: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize:18,
     textAlign: 'center',
   },
   labelsColumn: {
   width: 100,           // Breite der Label-Spalte (anpassen nach Bedarf)
   paddingRight: 8,
+  },
+  offsetButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: 8,
+    backgroundColor: '#555',
+    borderRadius: 4,
+  },
+  offsetButtonText: {
+    fontSize: 16,
+    color: '#fff',
   },
   });
 }

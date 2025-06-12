@@ -20,8 +20,7 @@ function waitForResponse(device: BluetoothDevice, expected: string, timeout = 12
 export async function startHandler(
     device: BluetoothDevice,
     instructions: string,
-    filesToSend: Array<string> = [''],
-    _messages: Array<string>
+    filesToSend: Array<string> = ['']
 ): Promise<void> {
     if (!device?.isConnected) {
         throw new Error('Device not connected');

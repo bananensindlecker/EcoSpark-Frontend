@@ -41,18 +41,17 @@ import { useBluetoothMessages } from './readMsg';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import Sound from 'react-native-sound';
 import changeNavigationBarColor from 'react-native-navigation-bar-color';
-// @ts-ignore
 import { createStyles } from './styles';
+import { startHandler } from './bluetoothStartHandler';
 // @ts-ignore
 import ImmersiveMode from 'react-native-immersive';
 import { Picker } from '@react-native-picker/picker';
 import StatsSwitcher from './switch';
-import { sendFile } from './sendFile';
 import { sendMessage } from './sendMsg';
-import RNFS from 'react-native-fs';
-import { startHandler } from './bluetoothStartHandler';
+
 
 export default function App() {
+let placeholderPassword = '1234'; // Beispiel-Passwort, kann angepasst werden
 const [direction, setDirection] = useState<'L' | 'R' | 'B'>('L');
 
 const [device, setDevice] = useState<BluetoothDevice | null>(null);
@@ -236,7 +235,7 @@ function clampTime(value: number): number {
 const [connectedDevice, setConnectedDevice] = useState<BluetoothDevice>(null as unknown as BluetoothDevice);
   const [message, setMessage] = useState<string>('');
   const [fileNames, setFileNames] = useState<Array<string>>([]);
-  const { messages,connected} = useBluetoothMessages(connectedDevice);
+  const { messages,error} = useBluetoothMessages(connectedDevice);
   let filePath = '/storage/emulated/0/Download/test.wav'; //
 
 // BluetoothEnd__________________________________________________________________________________________________________________________________________
@@ -345,7 +344,7 @@ const [boxData, setBoxData] = useState<Box[]>([
 const [currentTime, setCurrentTime] = useState<number>(0);
 // Optional: Breite des Containers, um Playhead exakt zu positionieren
 const [containerWidth, setContainerWidth] = useState<number>(0);
-
+const [playheadOffsetRatio, setPlayheadOffsetRatio] = useState<number>(0.5);
 
   // Segments per effect type per box
   const [lightSegmentsPerBox, setLightSegmentsPerBox] = useState<{ [boxId: number]: LayeredSegment[] }>({});
@@ -653,9 +652,11 @@ const handleStart = async () => {
     }
   });
 
-  const lines = sequence.map((item, i) => {
-    const startStr = item.start.toString().padStart(4, '0') + '000';
-    const endStr = item.end !== undefined ? item.end.toString().padStart(4, '0') + '000' : '';
+    const lines = sequence.map((item, i) => {
+    // Multiplizieren und Runden für Startzeit
+    const startStr = Math.round(item.start * 1000).toString().padStart(7, '0');
+    // Multiplizieren und Runden für Endzeit, falls vorhanden
+    const endStr = item.end !== undefined ? Math.round(item.end * 1000).toString().padStart(7, '0') : '';
     let displayName = item.name;
 
     if (item.type === 'three_d' && item.name === 'Spinn' && item.rotateRight !== undefined) {
@@ -675,29 +676,15 @@ const handleStart = async () => {
     return i < sequence.length - 1 ? `${line}?` : line;
   });
 
+
   const output = lines.join('\n');
   console.log(output);
   Alert.alert('Sequenz', output);
 
   // Übergabe des neuen arrays an startHandler
-  try {
-    await startHandler(output, connectedDevice, arrayOfFilePathsToSend);
-  } catch (e) {
-    Alert.alert('Bluetooth Fehler', (e as Error).message);
-  }
+  startHandler(connectedDevice, output, arrayOfFilePathsToSend);
 };
 
-
-  const handleScroll = (event: any) => {
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const scrollWidth = layoutMeasurement.width;
-    const contentWidth = contentSize.width;
-    const position = contentOffset.x;
-    const barWidth = contentWidth > 0 ? (scrollWidth / contentWidth) * scrollWidth : 0;
-    const scrollBarPosition = (position / (contentWidth - scrollWidth)) * (scrollWidth - barWidth);
-    setScrollBarWidth(barWidth);
-    setScrollPosition(scrollBarPosition);
-  };
   const handleImportSound = async () => {
   try {
     const results: DocumentPickerResponse[] = await pick({
@@ -1315,7 +1302,12 @@ return (
       resizeMode="cover"
     />
 
-    <StatsSwitcher selectedTab={selectedTab} onTabChange={setSelectedTab} />
+    {!editMode && (
+    <StatsSwitcher
+      selectedTab={selectedTab}
+      onTabChange={setSelectedTab}
+    />
+    )}
 
     {selectedTab === 'Build' ? (
       // ─── Build-Tab: Fragment richtig öffnen und schließen ─────────────────────────
@@ -1327,7 +1319,7 @@ return (
               { transform: [{ translateY: bounceAnim }] },
             ]}
           >
-            <View style={{ flexDirection: 'row', alignSelf: 'center' }}>
+            <View style={{ flexDirection: 'row', alignSelf: 'center', height:'100%'}}>
               {boxData.length > 0 && (
                 <Pressable
                   style={[
@@ -1350,8 +1342,8 @@ return (
                     source={require('./assets/EffektBackground.png')}
                     style={{
                       position: 'absolute',
-                      width: 340,
-                      height: 200,
+                      width: '100%',
+                      height: '100%',
                       borderRadius: 10,
                     }}
                     resizeMode="cover"
@@ -1372,7 +1364,7 @@ return (
         </TouchableWithoutFeedback>
               <View>
                 <TouchableOpacity onPress={handleStart}>
-                  <Text>Hello</Text>
+                  <Text>Hello</Text>;
                 </TouchableOpacity>
               </View>
         <View style={styles.Buttons}>
@@ -1435,7 +1427,7 @@ return (
 
         <View style={{ alignSelf: 'center', position: 'absolute', top: '40%'}}>
           <Pressable
-            onPress={onPress}
+            onPress={handleStart}
             style={{
               position: 'relative',
               alignSelf: 'flex-start',
@@ -1814,20 +1806,21 @@ return (
               {/* Obere Icon-Leiste */}
               <View style={styles.editMenuTop}>
                 <TouchableOpacity onPress={() => { setEditLichtEffekte(true); setEditSoundEffekte(false); setEdit3DEffekte(false); }}>
-                  <Image source={require('./assets/Light.png')} style={{ width: 35, height: 35 }} />
                   <Text style={styles.iconLabel}>Light</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => { setEdit3DEffekte(true); setEditLichtEffekte(false); setEditSoundEffekte(false); }}>
-                  <Image source={require('./assets/3D.png')} style={{ width: 35, height: 35 }} />
                   <Text style={styles.iconLabel}>3D</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => { setEditSoundEffekte(true); setEditLichtEffekte(false); setEdit3DEffekte(false); }}>
-                  <Image source={require('./assets/Sound.png')} style={{ width: 35, height: 35 }} />
                   <Text style={styles.iconLabel}>Sound</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setEditMode(false); setSelectedBoxId(null); }}>
-                  <Image source={require('./assets/Exit.png')} style={{ width: 35, height: 35 }} />
+                <TouchableOpacity onPress={() => { setEditMode(false); setSelectedBoxId(null); setEdit3DEffekte(false); setEditLichtEffekte(false); setEditSoundEffekte(false);}}>
                   <Text style={styles.iconLabel}>Exit</Text>
+                </TouchableOpacity>
+              </View>
+               <View style={styles.editMenuTop}>
+                <TouchableOpacity onPress={() => {setShowLengthModal(true); }}>
+                  <Text style={styles.iconLabel}>Einstellung der Länge</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1862,7 +1855,15 @@ return (
                       style={styles.timelineContainer}
                       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
                     >
-                      <View style={styles.playheadLine} />
+                      <View
+                       style={[
+                        styles.playheadLine,
+                          {
+                            // links = containerWidth * offset (default 0.5 = Mitte)
+                            left: containerWidth * playheadOffsetRatio,
+                          },
+                        ]}
+/>
 
                       <ScrollView
                         horizontal
@@ -2027,6 +2028,20 @@ return (
                           ))}
                         </View>
                       </ScrollView>
+                      <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => setPlayheadOffsetRatio(r => Math.max(0, r - 0.05))}
+                          style={styles.offsetButton}
+                        >
+                          <Text style={styles.offsetButtonText}>«</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setPlayheadOffsetRatio(r => Math.min(1, r + 0.05))}
+                          style={styles.offsetButton}
+                        >
+                          <Text style={styles.offsetButtonText}>»</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </>
                 );
@@ -2038,17 +2053,18 @@ return (
             {editLichtEffekte && (
               <View style={styles.editLichtEffekte}>
                 <View style={styles.editLichtEffekteTop} />
-                <TouchableOpacity onPress={() => { setEditLichtEffekte(false); } } style={{ alignSelf: 'center' }}>
-                  <Image
-                    source={require('./assets/Exit.png')}
-                    style={{ width: 35, height: 35 }} />
-                </TouchableOpacity>
                 {/* 1 ScrollView für alle Effekte */}
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ paddingHorizontal: 10, alignItems: 'center' }}
                 >
+                   <TouchableOpacity onPress={() => { setEditLichtEffekte(false); } } style={{ alignSelf: 'center' }}>
+                    <Image
+                      source={require('./assets/Exit.png')}
+                      style={{ width: 35, height: 35, top: -2, marginLeft: 17, marginRight: 25, backgroundColor: 'rgb(32, 31, 31)', borderRadius: 5}} />
+                  </TouchableOpacity>
+
                   {/* Eigene Effekte */}
                   {customLightEffects.map(effect => (
                     <Pressable
@@ -2137,12 +2153,12 @@ return (
             {editSoundEffekte && (
               <View style={styles.editLichtEffekte}>
                 <View style={styles.editLichtEffekteTop} />
-                <TouchableOpacity onPress={() => { setEditSoundEffekte(false); } } style={{ alignSelf: 'center' }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <TouchableOpacity onPress={() => { setEditSoundEffekte(false); } } style={{ alignSelf: 'center' }}>
                   <Image
                     source={require('./assets/Exit.png')}
-                    style={{ width: 35, height: 35 }} />
+                    style={{width: 35, height: 35, top: -2, marginLeft: 17, marginRight: 25, backgroundColor: 'rgb(32, 31, 31)', borderRadius: 5}} />
                 </TouchableOpacity>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {builtInSounds.map(s => (
                     <TouchableOpacity
                       key={s.name}
@@ -2225,7 +2241,7 @@ return (
                   <TouchableOpacity onPress={() => { setEdit3DEffekte(false); } } style={{ alignSelf: 'center' }}>
                     <Image
                       source={require('./assets/Exit.png')}
-                      style={{ width: 35, height: 35 }} />
+                      style={{ width: 35, height: 35, top: 0, backgroundColor: 'rgb(32, 31, 31)', borderRadius: 5}} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.editButton} onPress={() => setSelected3D('Nebel')}>
                     <Text style={styles.buttonText}>Nebel</Text>
@@ -2248,7 +2264,7 @@ return (
                 <View style={styles.modalOverlay}>
                 <Text style={styles.selectedText}>Nebel Effekt bearbeiten</Text>
 
-                <Text>Startzeit (Sekunden)</Text>
+                <Text style={styles.blockText}>Startzeit (Sekunden)</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
@@ -2256,13 +2272,13 @@ return (
                   onChangeText={text => setStartTime3D(formatOneDecimal(text))}
                   placeholder="Startzeit" />
 
-                <Text>Endzeit (Sekunden)</Text>
+                <Text style={styles.blockText}>Endzeit (Sekunden)</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
                   value={endTime3D}
                   onChangeText={text => setEndTime3D(formatOneDecimal(text))}
-                  placeholder="Endzeit" />
+                  placeholder="Endzeitpunkt" />
 
                 <View style={styles.modalButtonRow}>
                   <TouchableOpacity
@@ -2294,7 +2310,7 @@ return (
                 <View style={styles.modalOverlay}>
                 <Text style={styles.modalTitle}>Spinn Effekt bearbeiten</Text>
 
-                <Text>Startzeit (Sekunden)</Text>
+                <Text style={styles.blockText}>Startzeit (Sekunden)</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
@@ -2302,7 +2318,7 @@ return (
                   onChangeText={text => setStartTime3D(formatOneDecimal(text))}
                   placeholder="Startzeit" />
 
-                <Text>Endzeit (Sekunden)</Text>
+                <Text style={styles.blockText}>Endzeit (Sekunden)</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
@@ -2312,8 +2328,8 @@ return (
 
                 {/* Links / Rechts Umschalter */}
                 <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ flex: 1 }}>Drehrichtung:</Text>
-                  <Text style={{ marginRight: 10 }}>{rotateRight ? 'Rechts' : 'Links'}</Text>
+                  <Text style={{ flex: 1, color: 'rgb(255, 255, 255)' }}>Drehrichtung:</Text>
+                  <Text style={{ marginRight: 10, color: 'rgb(255, 255, 255)' }}>{rotateRight ? 'Rechts' : 'Links'}</Text>
                   <Switch
                     value={rotateRight}
                     onValueChange={setRotateRight} />
@@ -2364,12 +2380,12 @@ return (
                       value={newLightDesc}
                       onChangeText={setNewLightDesc} />
 
-                    <Text style={{ marginTop: 10 }}>Lichter:</Text>
-                    <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginTop: 5 }}>
+                    <Text style={{ marginTop: 10, color:'rgb(239, 239, 239)'}}>Lichter:</Text>
+                    <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginTop: 5, backgroundColor: 'rgb(239, 239, 239)' }}>
                       <Picker
                         selectedValue={newLightColor}
                         onValueChange={(itemValue) => setNewLightColor(itemValue)}
-                        dropdownIconColor="#000"
+                        dropdownIconColor= "rgb(0, 0, 0)"
                         style={{color: 'black'}}
                       >
                         <Picker.Item label="Flutlicht" value="Flutlicht" />
@@ -2384,12 +2400,12 @@ return (
                     </View>
 
                     <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ flex: 1 }}>Blinken aktivieren</Text>
+                      <Text style={{ flex: 1, color: 'rgb(255, 255, 255)'}}>Blinken aktivieren</Text>
                       <TouchableOpacity
                         style={[styles.button3, { backgroundColor: isBlinking ? '#3E7B27' : '#ccc' }]}
                         onPress={() => setIsBlinking(!isBlinking)}
                       >
-                        <Text style={styles.buttonText}>{isBlinking ? 'Ja' : 'Nein'}</Text>
+                        <Text style={styles.buttonTextBlack}>{isBlinking ? 'Ja' : 'Nein'}</Text>
                       </TouchableOpacity>
                     </View>
 
@@ -2507,13 +2523,20 @@ return (
 
             {connectUi && (
               <View style={styles.container}>
-                <Text style={styles.header}>Bluetooth Classic Example</Text>
-                <Button title="Connect to Raspberry Pi" onPress={() => connectToPi(setConnectedDevice, setMessage)} />
-                {/*Verbindungsstatus*/}
-                <Text style={styles.status}>{connected ? `Connected to ${connectedDevice.name}` : 'Not connected'}</Text>
+                <Text style={styles.header}>Anlage ansteurn</Text>
+                <Button title="Verbinden" onPress={() => connectToPi(setConnectedDevice, placeholderPassword, setMessage)} />
 
-                <TouchableOpacity style={styles.button} onPress={handleStart} />
-                <Button title="Connect to Raspberry Pi" onPress={() => sendMessage(connectedDevice, '4')} />
+                {/*Verbindungsstatus*/}
+                <Text style={styles.status}>{connectedDevice ? `verbunden mit ${connectedDevice.name}` : 'nicht verbunden'}</Text>
+
+                {/*Error bei verbinden*/}
+                <Text style={styles.message}>{message}</Text>
+
+                <Button title="Abfolgen hochladen" onPress={() => handleStart} />
+
+                {/*Button zum Starten der Abfolge*/}
+                <Button title="Abfolge starten" onPress={() => sendMessage(connectedDevice,'4')} />
+                <Button title="Abfolge stoppen" onPress={() => sendMessage(connectedDevice,'5')} />
               </View>
             )}
           </SafeAreaView>
