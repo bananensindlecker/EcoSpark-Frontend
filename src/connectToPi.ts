@@ -8,13 +8,18 @@ export async function connectToPi(
   setMessage: (message: string) => void
     ): Promise<void> {
     try {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.requestMultiple([
+    const permissions = [
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+    ];
+    if (Platform.Version as number >= 31) {
+      permissions.push(
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-      ]);
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN
+      );
+    }
+    const granted = await PermissionsAndroid.requestMultiple(permissions);
+    console.log('Permission results:', granted);
       const allGranted = Object.values(granted).every(
         permission => permission === PermissionsAndroid.RESULTS.GRANTED
       );
@@ -22,7 +27,6 @@ export async function connectToPi(
         setMessage('Bluetooth permissions are required to connect.');
         return;
       }
-    }
     if (!password){
       setMessage('Password is required.');
       return;

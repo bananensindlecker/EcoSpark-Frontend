@@ -28,7 +28,7 @@ export async function startHandler(
     if (!instructions) {
         throw new Error('Instructions are required');
     }
-    if (filesToSend) {
+    if (filesToSend[0] !== '') {
         for (let file of filesToSend) {
             await sendFile(device, file).catch(error => {
                 throw new Error('File send failed: ' + (error as Error).message);
