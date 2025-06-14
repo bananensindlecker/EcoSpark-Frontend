@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-shadow */
 /* eslint-disable react-native/no-inline-styles */
@@ -25,6 +26,7 @@ import {
   Easing,
   Dimensions,
   ScrollView,
+  LayoutChangeEvent,
 } from 'react-native';
 import {
   pick,
@@ -208,7 +210,6 @@ const loadBuiltInSound = (
   );
 };
 
-const PIXELS_PER_SECOND = 20;
 const screenWidth = Dimensions.get('window').width;
 const [scrollX, setScrollX] = useState(0);
 
@@ -1086,7 +1087,7 @@ const confirmDeleteSave = (nameToDelete: string) => {
 const [showNewLightModal, setShowNewLightModal] = useState(false);
 const [newLightName, setNewLightName] = useState('');
 const [newLightDesc, setNewLightDesc] = useState('');
-const [newLightColor, setNewLightColor] = useState('Weiß');
+const [newLightColor, setNewLightColor] = useState('Flutlicht');
 const currentLightNumber = getLightNumber(newLightColor, rotateRight);
 const [isBlinking, setIsBlinking] = useState(false);
 const [blinkFrequency, setBlinkFrequency] = useState('');
@@ -1244,7 +1245,7 @@ useEffect(() => {
   });
 
   const onPress = () => {
-    if (!activated) {setActivated(true);} // Nur einmal aktivieren, kein zurück
+    if (!activated) {setActivated(true); startHandler;} // Nur einmal aktivieren, kein zurück
   };
 // AnimationEnd__________________________________________________________________________________________________________________________________________________
 const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1290,6 +1291,82 @@ useEffect(() => {
   }
 }, [selectedTab]);
 
+const stopHolding = () => {
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }
+};
+
+  const FIXED_WINDOW_SEC = 10;      // Wenn Box länger als 10s, zeige 10s-Fenster
+  const PIXELS_PER_SECOND = 50;
+  // Fenster-Dauer in Sekunden (z.B. 10 s sichtbar)
+  const DurationSec = 10;
+
+  // Gesamte Timeline-Dauer in Sekunden
+  const timelineDurationSec = 60; // z.B. 60s Gesamt
+
+  // Effekt: Berechnet currentTime neu bei Scroll oder Playhead-Offset
+const totalLengthSec = timelineLengthsPerBox[selectedBoxId!] || 1;
+const lastSetCurrentTimeRef = useRef<number>(-1);
+const lastUpdateTimeRef = useRef<number>(0);
+const THROTTLE_INTERVAL_MS = 50; // nur alle 50ms updaten
+
+useEffect(() => {
+  if (selectedBoxId === null || containerWidth === 0) {return;}
+
+  const totalLengthSec = timelineLengthsPerBox[selectedBoxId];
+  if (!totalLengthSec || totalLengthSec <= 0) {return;}
+
+  const effectivePPS = totalLengthSec > FIXED_WINDOW_SEC
+    ? PIXELS_PER_SECOND
+    : containerWidth / totalLengthSec;
+
+  if (!isFinite(effectivePPS) || effectivePPS === 0) {return;}
+
+  const windowStartSec = scrollX / effectivePPS;
+  const playheadPixelX = playheadOffsetRatio * containerWidth;
+  const timeAtPlayhead = windowStartSec + playheadPixelX / effectivePPS;
+
+  if (!isFinite(timeAtPlayhead)) {return;}
+
+  const clampedTime = Math.max(0, Math.min(timeAtPlayhead, totalLengthSec));
+  const now = Date.now();
+
+  // Nur alle THROTTLE_INTERVAL_MS ms und wenn sich Wert deutlich geändert hat
+  if (now - lastUpdateTimeRef.current > THROTTLE_INTERVAL_MS &&
+      Math.abs(clampedTime - lastSetCurrentTimeRef.current) > 0.01) {  // >10ms Unterschied
+
+    lastSetCurrentTimeRef.current = clampedTime;
+    lastUpdateTimeRef.current = now;
+    setCurrentTime(clampedTime);
+  }
+}, [scrollX, containerWidth, playheadOffsetRatio, selectedBoxId]);
+
+
+
+  const totalMs = Math.floor(currentTime * 1000);
+  const minutes = Math.floor(totalMs / 60000).toString().padStart(2, '0');
+  const seconds = Math.floor((totalMs % 60000) / 1000).toString().padStart(2, '0');
+  const millis = (totalMs % 1000).toString().padStart(3, '0');
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    setContainerWidth(e.nativeEvent.layout.width);
+  };
+
+  const contentWidth = (timelineLengthsPerBox[selectedBoxId!] || 0) *
+    (timelineLengthsPerBox[selectedBoxId!] > FIXED_WINDOW_SEC ? PIXELS_PER_SECOND : containerWidth / timelineLengthsPerBox[selectedBoxId!]);
+
+  const startHolding = (direction: 'left' | 'right') => {
+    stopHolding();
+    intervalRef.current = setInterval(() => {
+      setPlayheadOffsetRatio(prev => {
+        const delta = 0.0015;
+        const next = direction === 'left' ? Math.max(0, prev - delta) : Math.min(1, prev + delta);
+        return next;
+      });
+    }, 10);
+  };
 
 return (
   <SafeAreaView style={styles.container}>
@@ -1362,11 +1439,6 @@ return (
             </View>
           </Animated.View>
         </TouchableWithoutFeedback>
-              <View>
-                <TouchableOpacity onPress={handleStart}>
-                  <Text>Hello</Text>;
-                </TouchableOpacity>
-              </View>
         <View style={styles.Buttons}>
           <TouchableOpacity onPress={handleSuchen} style={{ /* optional */ }}>
             <Image
@@ -1843,12 +1915,19 @@ return (
 
                 return (
                   <>
-                    {/* Zeit oben */}
-                    <View style={{ alignItems: 'center', marginBottom: 4 }}>
-                      <Text style={{ color: '#fff', fontSize: 16 }}>
-                        Sekunde: {currentTime.toFixed(2)}
-                      </Text>
-                    </View>
+                    <Text
+                    style={{
+                      position: 'absolute',
+                      top: '11%',
+                      left: containerWidth * playheadOffsetRatio - 20,
+                      color: '#fff',
+                      fontSize: 12,
+                      zIndex: 20,
+                    }}
+                  >
+                    {minutes}:{seconds}:{millis}
+                  </Text>
+
 
                     {/* Timeline-Container mit Playhead */}
                     <View
@@ -1888,13 +1967,17 @@ return (
                                     const dur = seg.end - seg.start;
                                     prevEnd = seg.end;
 
+                                    const gapWidth = (gap / totalLength) * contentWidth;
+                                    const rawWidth = (dur / totalLength) * contentWidth;
+                                    const visualWidth = Math.max(rawWidth, 2); // mind. 2px sichtbar
+
+
                                     return (
                                       <React.Fragment key={seg.id}>
                                         {gap > 0 && (
                                           <View
                                             style={{
-                                              width:
-                                                (gap / totalLength) * contentWidth,
+                                             width: gapWidth,
                                             }}
                                           />
                                         )}
@@ -1902,8 +1985,7 @@ return (
                                           style={[
                                             styles.timelineBlock,
                                             {
-                                              width:
-                                                (dur / totalLength) * contentWidth,
+                                              width: visualWidth,
                                               backgroundColor:
                                                 segmentColors[i % segmentColors.length],
                                             },
@@ -1944,8 +2026,8 @@ return (
                                         {gap > 0 && (
                                           <View
                                             style={{
-                                              width:
-                                                (gap / totalLength) * contentWidth,
+                                             width:
+                                              (gap / totalLength) * contentWidth,
                                             }}
                                           />
                                         )}
@@ -2004,7 +2086,7 @@ return (
                                           style={[
                                             styles.timelineBlock,
                                             {
-                                              width:
+                                             width:
                                                 (dur / totalLength) * contentWidth,
                                               backgroundColor:
                                                 segmentColors[i % segmentColors.length],
@@ -2028,19 +2110,22 @@ return (
                           ))}
                         </View>
                       </ScrollView>
-                      <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => setPlayheadOffsetRatio(r => Math.max(0, r - 0.05))}
+                      {/* Buttons zum Verschieben des Playhead-Offsets */}
+                      <View style={styles.offsetControls}>
+                        <Pressable
+                          onPressIn={() => startHolding('left')}
+                          onPressOut={stopHolding}
                           style={styles.offsetButton}
                         >
                           <Text style={styles.offsetButtonText}>«</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => setPlayheadOffsetRatio(r => Math.min(1, r + 0.05))}
+                        </Pressable>
+                        <Pressable
+                          onPressIn={() => startHolding('right')}
+                          onPressOut={stopHolding}
                           style={styles.offsetButton}
                         >
                           <Text style={styles.offsetButtonText}>»</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                       </View>
                     </View>
                   </>
@@ -2532,7 +2617,7 @@ return (
                 {/*Error bei verbinden*/}
                 <Text style={styles.message}>{message}</Text>
 
-                <Button title="Abfolgen hochladen" onPress={() => handleStart} />
+                <Button title="Abfolgen hochladen" onPress={() => handleStart()} />
 
                 {/*Button zum Starten der Abfolge*/}
                 <Button title="Abfolge starten" onPress={() => sendMessage(connectedDevice,'4')} />

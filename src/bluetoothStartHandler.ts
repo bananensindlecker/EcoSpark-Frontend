@@ -1,6 +1,7 @@
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import { sendFile } from './sendFile';
 import { sendMessage } from './sendMsg';
+import RNFS from 'react-native-fs';
 
 function waitForResponse(device: BluetoothDevice, expected: string, timeout = 120000): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -30,10 +31,13 @@ export async function startHandler(
     }
     if (filesToSend[0] !== '') {
         for (let file of filesToSend) {
+            const exists = await RNFS.exists(file);
+            if (!exists) {
+                throw new Error(`File does not exist: ${file}`);
+            }
             await sendFile(device, file).catch(error => {
                 throw new Error('File send failed: ' + (error as Error).message);
             });
-            // Wait for confirmation before sending the next file
             const filename = file.split('/').pop();
             await waitForResponse(device, `Audio Datei gespeichet als ${filename}`);
         }
