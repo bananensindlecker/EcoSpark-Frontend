@@ -36,7 +36,7 @@ export async function startHandler(
                 throw new Error(`File does not exist: ${file}`);
             }
             await sendFile(device, file).catch(error => {
-                throw new Error('File send failed: ' + (error as Error).message);
+                throw new Error('File send failed: ' + (error as Error).message + ` for file ${file}`);
             });
             const filename = file.split('/').pop();
             await waitForResponse(device, `Audio Datei gespeichet als ${filename}`);

@@ -45,18 +45,21 @@ import Sound from 'react-native-sound';
 import changeNavigationBarColor from 'react-native-navigation-bar-color';
 import { createStyles } from './styles';
 import { startHandler } from './bluetoothStartHandler';
+import RNFS from 'react-native-fs';
 // @ts-ignore
 import ImmersiveMode from 'react-native-immersive';
 import { Picker } from '@react-native-picker/picker';
 import StatsSwitcher from './switch';
 import { sendMessage } from './sendMsg';
 
+function isBuiltInSound(filePath: string) {
+  return !filePath.includes('/') && filePath.endsWith('.wav');
+}
+
 
 export default function App() {
 let placeholderPassword = '1234'; // Beispiel-Passwort, kann angepasst werden
-const [direction, setDirection] = useState<'L' | 'R' | 'B'>('L');
 
-const [device, setDevice] = useState<BluetoothDevice | null>(null);
 
 const pinMap: Record<string, { L: string; R: string }> = {
   'Licht Rot': { L: '08', R: '12' },
@@ -214,15 +217,28 @@ const screenWidth = Dimensions.get('window').width;
 const [scrollX, setScrollX] = useState(0);
 
 
-  const [builtInSounds, setBuiltInSounds] = useState<BuiltInSound[]>([
+ const [builtInSounds, setBuiltInSounds] = useState<BuiltInSound[]>([
   { name: 'sound 1', file: 'sound1.wav', description: 'Test1', duration: 1 },
   { name: 'sound 2', file: 'sound2.wav', description: 'Test2', duration: 1 },
   { name: 'sound 3', file: 'sound3.wav', description: 'Test3', duration: 1 },
   { name: 'sound 4', file: 'sound4.wav', description: 'Test4', duration: 1 },
   { name: 'sound 5', file: 'sound5.wav', description: 'Test5', duration: 1 },
   { name: 'sound 6', file: 'sound6.wav', description: 'Test6', duration: 1 },
-  // Füge hier einfach weitere Einträge hinzu, je nachdem wie viele .wav-Dateien du hast.
-  ]);
+]);
+
+async function copyBuiltInSoundToTmp(fileName: string): Promise<string> {
+  const tmpPath = RNFS.TemporaryDirectoryPath + '/' + fileName;
+  try {
+    // Auf Android Assets kopieren
+    await RNFS.copyFileAssets(fileName, tmpPath);
+    return tmpPath;
+  } catch (e) {
+    console.error('Fehler beim Kopieren des Assets:', e);
+    throw e;
+  }
+}
+
+
 // StatesSoundEditorEnd____________________________________________________________________________________________________________________________
 
 const MAX_DURATION = 180;
@@ -340,7 +356,6 @@ const [boxData, setBoxData] = useState<Box[]>([
 
   // Timeline lengths per box
   const [timelineLengthsPerBox, setTimelineLengthsPerBox] = useState<{ [boxId: number]: number }>({});
-  const [showTimelineModal, setShowTimelineModal] = useState(false);
   // Für die Hervorhebung aktiver Segmente
 const [currentTime, setCurrentTime] = useState<number>(0);
 // Optional: Breite des Containers, um Playhead exakt zu positionieren
@@ -360,17 +375,7 @@ const [playheadOffsetRatio, setPlayheadOffsetRatio] = useState<number>(0.5);
   // Map von Lücken-Index → Zeit-String
   const [gapTimes, setGapTimes] = useState<{ [index: number]: string }>({});
 
-
-  // Overlap handling
-  const [overlapModalLight, setOverlapModalLight] = useState(false);
-
-  const [overlapModalSound, setOverlapModalSound] = useState(false);
-
-  const [overlapModal3D, setOverlapModal3D] = useState(false);
-
   const scrollViewRef = useRef<ScrollView>(null);
-  const [scrollPosition, setScrollPosition] = useState(0);
-  const [scrollBarWidth, setScrollBarWidth] = useState(0);
 
 
   // Compute segments and max end for each type
@@ -489,16 +494,6 @@ const handleEditSegment = () => {
   setSelectedSegment(null);
 };
 
-
-const handleExit = () => {
-    if (Platform.OS === 'android') {
-      BackHandler.exitApp();
-    } else {
-      // iOS erlaubt kein programmatisches Beenden
-      console.warn('Programmatisches Beenden ist auf iOS nicht möglich.');
-    }
-  };
-
  const handleSuchen = async () => {
   try {
     const json = await AsyncStorage.getItem(SAVE_KEY);
@@ -575,12 +570,11 @@ const handleStart = async () => {
   const sequence: SeqItem[] = [];
   let globalOffset = 0;
 
-  // Array für alle Sound-Dateipfade
   const arrayOfFilePathsToSend: string[] = [];
-  // Fester Pfad zum Raw-Ordner (kann bei Bedarf als Variable rausgezogen werden)
-  const basePath = 'C:\\Users\\Jeremy\\ProjectEcoSpark\\android\\app\\src\\main\\res\\raw\\';
 
-  boxData.forEach((box, idx) => {
+  for (let idx = 0; idx < boxData.length; idx++) {
+    const box = boxData[idx];
+
     const lightSegs = (lightSegmentsPerBox[box.id] || []).sort((a, b) => a.start - b.start);
     lightSegs.forEach(seg => {
       const lightEffect = customLightEffects.find(e => e.name === seg.light);
@@ -598,7 +592,7 @@ const handleStart = async () => {
     });
 
     const soundSegs = (soundSegmentsPerBox[box.id] || []).sort((a, b) => a.start - b.start);
-    soundSegs.forEach(seg => {
+    for (const seg of soundSegs) {
       sequence.push({
         type: 'sound',
         name: seg.sound,
@@ -607,18 +601,25 @@ const handleStart = async () => {
         selectedSoundFile: seg.file,
       });
 
-      // NEU: Dateipfad hinzufügen, falls seg.file definiert ist
       if (seg.file) {
-        // Nur den Dateinamen extrahieren, falls seg.file ein Pfad ist (z.B. "sounds/sound1.wav")
-        const fileName = seg.file.split(/[\\/]/).pop();
-        if (fileName) {
-          const fullPath = basePath + fileName;
-          if (!arrayOfFilePathsToSend.includes(fullPath)) {
-            arrayOfFilePathsToSend.push(fullPath);
+        let filePath = seg.file;
+
+        // Prüfe ob es ein built-in Sound ist (z.B. keine absoluten Pfad oder endet nicht mit '/')
+        if (isBuiltInSound(filePath)) {
+          filePath = await copyBuiltInSoundToTmp(filePath);
+        }
+
+        await RNFS.exists(filePath).then((exists) => {
+          if (exists && !arrayOfFilePathsToSend.includes(filePath)) {
+            arrayOfFilePathsToSend.push(filePath);
+          }else if (!exists) {
+            console.warn(`⚠️ Datei existiert nicht: ${filePath}`);
           }
         }
+        );
+
       }
-    });
+    }
 
     const d3Segs = (threeDSegmentsPerBox[box.id] || []).sort((a, b) => a.start - b.start);
     d3Segs.forEach(seg => {
@@ -631,13 +632,12 @@ const handleStart = async () => {
       });
     });
 
-    const boxEnd = timelineLengthsPerBox[box.id] ??
-      Math.max(
-        lightSegs.length ? Math.max(...lightSegs.map(s => s.end)) : 0,
-        soundSegs.length ? Math.max(...soundSegs.map(s => s.end ?? 0)) : 0,
-        d3Segs.length ? Math.max(...d3Segs.map(s => s.end)) : 0,
-        0
-      );
+    const boxEnd = timelineLengthsPerBox[box.id] ?? Math.max(
+      lightSegs.length ? Math.max(...lightSegs.map(s => s.end)) : 0,
+      soundSegs.length ? Math.max(...soundSegs.map(s => s.end ?? 0)) : 0,
+      d3Segs.length ? Math.max(...d3Segs.map(s => s.end)) : 0,
+      0
+    );
 
     globalOffset += boxEnd;
 
@@ -651,12 +651,10 @@ const handleStart = async () => {
       });
       globalOffset += gapSec;
     }
-  });
+  }
 
-    const lines = sequence.map((item, i) => {
-    // Multiplizieren und Runden für Startzeit
+  const lines = sequence.map((item, i) => {
     const startStr = Math.round(item.start * 1000).toString().padStart(7, '0');
-    // Multiplizieren und Runden für Endzeit, falls vorhanden
     const endStr = item.end !== undefined ? Math.round(item.end * 1000).toString().padStart(7, '0') : '';
     let displayName = item.name;
 
@@ -677,14 +675,17 @@ const handleStart = async () => {
     return i < sequence.length - 1 ? `${line}?` : line;
   });
 
-
   const output = lines.join('\n');
   console.log(output);
   Alert.alert('Sequenz', output);
 
-  // Übergabe des neuen arrays an startHandler
-  startHandler(connectedDevice, output, arrayOfFilePathsToSend);
+  try {
+    await startHandler(connectedDevice, output, arrayOfFilePathsToSend);
+  } catch (err) {
+    Alert.alert('Fehler', String(err));
+  }
 };
+
 
   const handleImportSound = async () => {
   try {
@@ -1427,7 +1428,7 @@ return (
                   />
                   <Text
                     style={{
-                      marginTop: 160,
+                      marginTop: 200,
                       fontSize: 12,
                       color: '#FFFFFF',
                     }}
@@ -1956,56 +1957,44 @@ return (
                           {/* 💡 Lichteffekte */}
                           <Text style={styles.groupLabel}>💡 Lichteffekte</Text>
                           {[0, 1, 2, 3].map((layer) => (
-                            <View key={`L${layer}`} style={styles.timelineRow}>
-                              {(() => {
-                                let prevEnd = 0;
-                                return sortedLight
-                                  .filter((s) => s.layer === layer)
-                                  .sort((a, b) => a.start - b.start)
-                                  .map((seg, i) => {
-                                    const gap = seg.start - prevEnd;
-                                    const dur = seg.end - seg.start;
-                                    prevEnd = seg.end;
+                            <View key={`L${layer}`} style={[styles.timelineRow, { position: 'relative' }]}>
+                              {sortedLight
+                                .filter((s) => s.layer === layer)
+                                .sort((a, b) => a.start - b.start)
+                                .map((seg, i) => {
+                                  const start = seg.start;
+                                  const dur = seg.end - seg.start;
+                                  const left = (start / totalLength) * contentWidth;
+                                  const rawWidth = (dur / totalLength) * contentWidth;
+                                  const visualWidth = Math.max(rawWidth, 2);
 
-                                    const gapWidth = (gap / totalLength) * contentWidth;
-                                    const rawWidth = (dur / totalLength) * contentWidth;
-                                    const visualWidth = Math.max(rawWidth, 2); // mind. 2px sichtbar
-
-
-                                    return (
-                                      <React.Fragment key={seg.id}>
-                                        {gap > 0 && (
-                                          <View
-                                            style={{
-                                             width: gapWidth,
-                                            }}
-                                          />
-                                        )}
-                                        <TouchableOpacity
-                                          style={[
-                                            styles.timelineBlock,
-                                            {
-                                              width: visualWidth,
-                                              backgroundColor:
-                                                segmentColors[i % segmentColors.length],
-                                            },
-                                          ]}
-                                          onPress={() =>
-                                            setSelectedSegment({
-                                              type: 'light',
-                                              boxId: selectedBoxId!,
-                                              id: seg.id,
-                                            })
-                                          }
-                                        >
-                                          <Text style={styles.blockText}>{seg.light}</Text>
-                                        </TouchableOpacity>
-                                      </React.Fragment>
-                                    );
-                                  });
-                              })()}
+                                  return (
+                                    <TouchableOpacity
+                                      key={seg.id}
+                                      style={[
+                                        styles.timelineBlock,
+                                        {
+                                          position: 'absolute',
+                                          left,
+                                          width: visualWidth,
+                                          backgroundColor: segmentColors[i % segmentColors.length],
+                                        },
+                                      ]}
+                                      onPress={() =>
+                                        setSelectedSegment({
+                                          type: 'light',
+                                          boxId: selectedBoxId!,
+                                          id: seg.id,
+                                        })
+                                      }
+                                    >
+                                      <Text style={styles.blockText}>{seg.light}</Text>
+                                    </TouchableOpacity>
+                                  );
+                                })}
                             </View>
                           ))}
+
 
                           {/* 🔊 Soundeffekte */}
                           <Text style={styles.groupLabel}>🔊 Soundeffekte</Text>
@@ -2017,26 +2006,21 @@ return (
                                   .filter((s) => s.layer === layer)
                                   .sort((a, b) => a.start - b.start)
                                   .map((seg, i) => {
-                                    const gap = seg.start - prevEnd;
+                                    const start = seg.start;
                                     const dur = seg.end - seg.start;
-                                    prevEnd = seg.end;
+                                    const left = (start / totalLength) * contentWidth;
+                                    const rawWidth = (dur / totalLength) * contentWidth;
+                                    const visualWidth = Math.max(rawWidth, 2);
 
                                     return (
-                                      <React.Fragment key={seg.id}>
-                                        {gap > 0 && (
-                                          <View
-                                            style={{
-                                             width:
-                                              (gap / totalLength) * contentWidth,
-                                            }}
-                                          />
-                                        )}
                                         <TouchableOpacity
+                                          key={seg.id}
                                           style={[
                                             styles.timelineBlock,
                                             {
-                                              width:
-                                                (dur / totalLength) * contentWidth,
+                                              position: 'absolute',
+                                              left,
+                                              width:visualWidth,
                                               backgroundColor:
                                                 segmentColors[i % segmentColors.length],
                                             },
@@ -2051,7 +2035,6 @@ return (
                                         >
                                           <Text style={styles.blockText}>{seg.sound}</Text>
                                         </TouchableOpacity>
-                                      </React.Fragment>
                                     );
                                   });
                               })()}
@@ -2068,26 +2051,20 @@ return (
                                   .filter((s) => s.layer === layer)
                                   .sort((a, b) => a.start - b.start)
                                   .map((seg, i) => {
-                                    const gap = seg.start - prevEnd;
+                                    const start = seg.start;
                                     const dur = seg.end - seg.start;
-                                    prevEnd = seg.end;
+                                    const left = (start / totalLength) * contentWidth;
+                                    const rawWidth = (dur / totalLength) * contentWidth;
+                                    const visualWidth = Math.max(rawWidth, 2);
 
                                     return (
-                                      <React.Fragment key={seg.id}>
-                                        {gap > 0 && (
-                                          <View
-                                            style={{
-                                              width:
-                                                (gap / totalLength) * contentWidth,
-                                            }}
-                                          />
-                                        )}
                                         <TouchableOpacity
                                           style={[
                                             styles.timelineBlock,
                                             {
-                                             width:
-                                                (dur / totalLength) * contentWidth,
+                                              position: 'absolute',
+                                              left,
+                                              width: visualWidth,
                                               backgroundColor:
                                                 segmentColors[i % segmentColors.length],
                                             },
@@ -2102,7 +2079,6 @@ return (
                                         >
                                           <Text style={styles.blockText}>{seg.model}</Text>
                                         </TouchableOpacity>
-                                      </React.Fragment>
                                     );
                                   });
                               })()}
@@ -2622,7 +2598,11 @@ return (
                 {/*Button zum Starten der Abfolge*/}
                 <Button title="Abfolge starten" onPress={() => sendMessage(connectedDevice,'4')} />
                 <Button title="Abfolge stoppen" onPress={() => sendMessage(connectedDevice,'5')} />
+                <TouchableOpacity style={styles.button} onPress={() => setconnectUi(false)}>
+                  <Text>Zurück</Text>
+                </TouchableOpacity>
               </View>
             )}
           </SafeAreaView>
  );}
+
