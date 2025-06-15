@@ -1,6 +1,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import RNBluetoothClassic, { BluetoothDevice } from 'react-native-bluetooth-classic';
 import { sendMessage } from './sendMsg.ts';
+import { sha3_256 } from 'js-sha3';
 
 export async function connectToPi(
   setConnectedDevice: (device: BluetoothDevice) => void,
@@ -31,6 +32,7 @@ export async function connectToPi(
       setMessage('Password is required.');
       return;
     }
+    let hashedPassword = sha3_256.create().update(password).hex();
 
     const devices = await RNBluetoothClassic.getBondedDevices();
     const pi = devices.find(
@@ -46,7 +48,7 @@ export async function connectToPi(
     if (connected) {
       setConnectedDevice(pi);
 
-      await sendMessage(pi, '0' + password);
+      await sendMessage(pi, '0' + hashedPassword);
     } else {
       setMessage('Failed to connect.');
     }
