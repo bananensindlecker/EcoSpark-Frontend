@@ -23,12 +23,15 @@ export async function startHandler(
     instructions: string,
     filesToSend: Array<string> = ['']
 ): Promise<void> {
+    // Check if the device is connected
     if (!device?.isConnected) {
         throw new Error('Device not connected');
     }
+    // Check if instructions are provided
     if (!instructions) {
         throw new Error('Instructions are required');
     }
+    // Check if filesToSend is an array and contains valid file paths (NO LONGER USED)
     if (filesToSend[0] !== '') {
         for (let file of filesToSend) {
             const exists = await RNFS.exists(file);
@@ -42,6 +45,7 @@ export async function startHandler(
             await waitForResponse(device, `Audio Datei gespeichet als ${filename}`);
         }
     }
+    // Send the instructions to the device und the match value of 2
     await sendMessage(device, '2' + instructions);
     return Promise.resolve();
 }
