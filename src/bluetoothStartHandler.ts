@@ -31,7 +31,7 @@ export async function startHandler(
     if (!instructions) {
         throw new Error('Instructions are required');
     }
-    // Check if filesToSend is an array and contains valid file paths (NO LONGER USED)
+    // Check if filesToSend is an array and contains valid file paths
     if (filesToSend[0] !== '') {
         for (let file of filesToSend) {
             const exists = await RNFS.exists(file);
