@@ -121,9 +121,8 @@ export function createStyles(width: number, height: number) {
     alignSelf: 'center',
     width: width * 0.55,      // 45 % der Gesamtbreite statt „scale * 0.45“
     height: height * 0.1,    // 50 % der Gesamt­höhe (wie zuvor)
-    top:    height * 0.50,    // 40 % von oben
+    top:    height * 0.40,    // 40 % von oben
     zIndex: 10,
-    backgroundColor: 'rgb(199, 199, 199)',
     borderRadius: 25,
     elevation: 10,
   },
@@ -138,12 +137,22 @@ export function createStyles(width: number, height: number) {
     borderRadius: 25,
     elevation: 7,
   },
-
+   buttonStartInnerDisabled : {
+    position: 'absolute',
+    alignSelf: 'center',
+    width: '97.5%' ,      // 45 % der Gesamtbreite statt „scale * 0.45“
+    height: '95%',    // 50 % der Gesamt­höhe (wie zuvor)
+    top:    '2.5%',    // 40 % von oben
+    zIndex: 11,
+    backgroundColor: 'rgb(106, 106, 106)',
+    borderRadius: 25,
+    elevation: 7,
+  },
     // Scroll-Container oberhalb Timeline
     EffektContainer: {
       position: 'absolute',
       top: '15%',
-      height: '25%',               // feste Höhe in Scale
+      height: 300 * scale ,               // feste Höhe in Scale
       width: '90%',
       zIndex: 0,
       alignSelf: 'center',
@@ -238,7 +247,7 @@ export function createStyles(width: number, height: number) {
       bottom: 0,
       left: 0,
       right: 0,
-      top: '0%',                         // bleibt prozentual
+      top: '5%',                         // bleibt prozentual
       backgroundColor: '#181818',
       padding: 16 * scale,
       elevation: 10,
@@ -255,7 +264,7 @@ export function createStyles(width: number, height: number) {
     label: {
       fontSize: 16 * scale,
       fontWeight: 'bold',
-      marginTop: 10 * scale,
+      marginTop: 330 * scale,
       color: '#333',
     },
 
@@ -455,17 +464,19 @@ export function createStyles(width: number, height: number) {
     },
     directionLabel: {
       fontSize: 16 * scale,
-      color: '#333',
+      color: '#fff',
     },
     message: {
       marginTop: 10 * scale,
       fontSize: 14 * scale,
-      color: 'green',
+      color: '#ffff',
+      alignSelf: 'center',
     },
     status: {
       marginTop: 20 * scale,
       fontSize: 16 * scale,
-      color: 'green',
+      color: '#ffff',
+      alignSelf: 'center',
     },
 
     headerBackground: {
@@ -487,6 +498,7 @@ export function createStyles(width: number, height: number) {
       fontSize: 24 * scale,
       marginBottom: 20 * scale,
       color: 'white',
+      alignSelf: 'center',
     },
     HintergrundText: {
       fontSize: 40 * scale,
@@ -621,7 +633,7 @@ export function createStyles(width: number, height: number) {
     },
     iconLabel: {
     color: '#FFFFFF',
-    fontSize:18,
+    fontSize:24,
     textAlign: 'center',
   },
   labelsColumn: {
@@ -639,5 +651,10 @@ export function createStyles(width: number, height: number) {
     fontSize: 16,
     color: '#fff',
   },
+  offsetControls: {
+  flexDirection: 'row',      // Anordnung der Buttons nebeneinander
+  justifyContent: 'center',  // zentriert im Container
+  marginTop: 8,              // Abstand nach oben
+},
   });
 }
