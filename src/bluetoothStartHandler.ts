@@ -21,8 +21,12 @@ function waitForResponse(device: BluetoothDevice, expected: string, timeout = 12
 export async function startHandler(
     device: BluetoothDevice,
     instructions: string,
-    filesToSend: Array<string> = ['']
+    filesToSend: Array<string> = [''],
+    setParts: (parts: number) => void,
+    setTotalParts: (totalParts: number) => void,
 ): Promise<void> {
+    let count: number = 0; // Initialize the count of parts sent
+    let totalcount: number = 1; // Initialize the total count of parts to be sent
     // Check if the device is connected
     if (!device?.isConnected) {
         throw new Error('Device not connected');
@@ -33,6 +37,8 @@ export async function startHandler(
     }
     // Check if filesToSend is an array and contains valid file paths
     if (filesToSend[0] !== '') {
+        totalcount = filesToSend.length; // Set the total count of parts
+        setTotalParts(totalcount); // Update the total parts in the state
         for (let file of filesToSend) {
             const exists = await RNFS.exists(file);
             if (!exists) {
@@ -43,9 +49,13 @@ export async function startHandler(
             });
             const filename = file.split('/').pop();
             await waitForResponse(device, `Audio Datei gespeichet als ${filename}`);
+            count++; // Increment the count parts
+            setParts(count); // Update the parts sent in the state
         }
     }
     // Send the instructions to the device und the match value of 2
     await sendMessage(device, '2' + instructions);
+    count++; // Increment the count parts
+    setParts(count); // Update the parts sent in the state
     return Promise.resolve();
 }
