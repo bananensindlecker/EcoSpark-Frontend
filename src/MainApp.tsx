@@ -714,7 +714,7 @@ const handleStart = async () => {
    await startHandler(
   connectedDevice,
   output,
-  arrayOfFilePathsToSend,
+  [''],
   setProgress,
   setTotalParts
 );
